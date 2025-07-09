@@ -4,7 +4,6 @@
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SliderManager } from './slider-manager.js';
 import { MenuManager } from './menu-manager.js';
-import { MouseInteractionManager } from './mouse-interaction-manager.js';
 
 /**
  * Classe principale qui orchestre toute l'application VV Place
@@ -20,7 +19,6 @@ export class VVPlaceApp {
     this.smoothScrollManager = null;      // Gestion du scroll fluide
     this.sliderManager = null;           // Gestion du slider principal
     this.menuManager = null;             // Gestion du menu
-    this.mouseInteractionManager = null; // Gestion des interactions souris
   }
 
   /**
@@ -40,10 +38,5 @@ export class VVPlaceApp {
     // 4. Lance l'initialisation du slider et du menu
     this.sliderManager.init();
     this.menuManager.init();
-    
-    // 5. Initialise les interactions souris en dernier
-    // (utilise les slides du sliderManager)
-    this.mouseInteractionManager = new MouseInteractionManager(this.sliderManager.sliderItems);
-    this.mouseInteractionManager.init();
   }
 }

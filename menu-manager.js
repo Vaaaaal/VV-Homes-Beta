@@ -4,27 +4,27 @@
 import { CONFIG } from './config.js';
 
 /**
- * Gère le système de menu multi-niveaux avec les fonctionnalités suivantes :
- * - Ouverture/fermeture du menu principal et overlay
- * - Navigation hiérarchique entre les panneaux
- * - Génération dynamique des éléments de menu
- * - Gestion des dossiers, articles et boutons de fermeture
- * - Navigation automatique vers des éléments spécifiques
+ * MenuManager - Gestionnaire de navigation dynamique pour CMS
+ * Gère la navigation hiérarchique avec historique et logique de frères/ancêtres
  */
 export class MenuManager {
   constructor(smoothScrollManager = null) {
-    // Référence au gestionnaire de scroll fluide
     this.smoothScrollManager = smoothScrollManager;
     
     // Éléments principaux du menu
     this.menu = document.querySelector(CONFIG.SELECTORS.MENU_WRAP);
     this.menuFirstPanel = this.menu?.querySelector(CONFIG.SELECTORS.MENU_FIRST_PANEL);
     this.menuFirstPanelItem = this.menu?.querySelector(CONFIG.SELECTORS.MENU_FIRST_PANEL_ITEM);
+    this.menuPanelItems = this.menu?.querySelectorAll(CONFIG.SELECTORS.MENU_PANEL_ITEMS);
     this.menuButton = document.querySelector(CONFIG.SELECTORS.MENU_BUTTON);
+    this.menuExit = document.querySelectorAll(CONFIG.SELECTORS.MENU_EXIT);
     this.menuOverlay = this.menu?.querySelector('.menu_overlay');
     
-    // Historique des dossiers cliqués pour la navigation hiérarchique
-    this.clickedFoldersLineage = [];
+    // Boutons CMS dynamiques
+    this.cmsButtons = [];
+    
+    // Historique de navigation
+    this.navigationHistory = [];
   }
 
   // ==========================================
@@ -32,948 +32,649 @@ export class MenuManager {
   // ==========================================
 
   /**
-   * Initialise le système de menu complet
+   * Initialise le système de menu
    */
-  init() {
-    if (!this.menu || !this.menuButton) return;
+  async init() {
+    if (!this.menu || !this.menuButton) {
+      console.warn('Menu ou bouton de menu introuvable');
+      return;
+    }
     
-    this.initPanels();
-    this.initEventListeners();
-    this.initSliderMenuLinks();
-  }
+    try {
+      // Attendre que Finsweet Attributes List Nest soit chargé
+      await this.waitForFinsweetAttributes();
 
-  /**
-   * Initialise tous les gestionnaires d'événements
-   */
-  initEventListeners() {
-    // Bouton principal du menu
-    this.menuButton.addEventListener("click", () => this.openMenu());
-    
-    // Boutons de fermeture (menu_exit)
-    this.initMenuExitButtons();
-    
-    // Clic sur l'overlay pour fermer le menu
-    this.initOverlayClick();
-  }
-
-  // ==========================================
-  // MÉTHODES D'OUVERTURE DU MENU
-  // ==========================================
-
-  /**
-   * Ouvre le menu principal avec animation
-   */
-  openMenu() {
-    if (!this.menu.classList.contains("is-active")) {
-      // Désactive le scroll du main-wrapper quand le menu s'ouvre
-      if (this.smoothScrollManager) {
-        this.smoothScrollManager.disableScroll();
-        
-        // Active le scroll pour le premier panel de menu
-        this.smoothScrollManager.enableMenuScroll(this.menuFirstPanelItem);
-      }
+      // Attendre que les boutons CMS soient chargés
+      await this.waitForCMSElements();
       
-      // Active le menu, le premier panneau et l'overlay
-      this.menu.classList.add("is-active");
-      this.menuFirstPanel.classList.add("is-active");
-      if (this.menuOverlay) {
-        this.menuOverlay.classList.add("is-active");
-      }
+      // Initialiser les positions et événements
+      this.initPanelPositions();
+      this.initBasicEvents();
       
-      // Récupère tous les boutons du premier panneau
-      const menuFirstPanelItemButtons = gsap.utils.toArray(
-        this.menuFirstPanelItem.querySelectorAll(".menu_panel_collection_item")
-      );
-
-      // Anime l'entrée du premier panneau
-      gsap.to(this.menuFirstPanelItem, {
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-        xPercent: 0,
-        pointerEvents: "auto"
-      });
-
-      // Attache les événements aux boutons (évite les doublons)
-      this.attachFirstPanelEvents(menuFirstPanelItemButtons);
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation du menu:', error);
     }
   }
 
   /**
-   * Attache les événements aux boutons du premier panel (prévient les doublons)
-   * @param {Array} buttons - Liste des boutons du premier panel
+   * Attend que les boutons CMS soient chargés dans le DOM
+   * @returns {Promise<void>}
    */
-  attachFirstPanelEvents(buttons) {
-    buttons.forEach((button) => {
-      if (!button.hasAttribute('data-click-attached')) {
-        button.addEventListener("click", () => this.handleFolderClick(button));
-        
-        // Ajoute les événements de hover pour les dossiers
-        if (button.classList.contains('is-folder')) {
-          button.addEventListener("mouseenter", () => this.animateFolderHover(button, true));
-          button.addEventListener("mouseleave", () => this.animateFolderHover(button, false));
-        }
-        
-        button.setAttribute('data-click-attached', 'true');
-      }
-    });
-  }
-
-  // ==========================================
-  // MÉTHODES DE GESTION DES CLICS SUR DOSSIERS
-  // ==========================================
-
-  /**
-   * Gère le clic sur un dossier pour ouvrir un sous-menu
-   * @param {HTMLElement} button - Le bouton de dossier cliqué
-   */
-  async handleFolderClick(button) {
-    if (button.classList.contains("is-active")) {
-      return; // Dossier déjà actif
-    }
-    await this._openFolderPanel(button);
-  }
-
-  /**
-   * Version forcée pour la navigation automatique (ignore l'état is-active)
-   * @param {HTMLElement} button - Le bouton de dossier cliqué
-   */
-  async handleFolderClickForced(button) {
-    await this._openFolderPanel(button);
-  }
-
-  /**
-   * Méthode privée : logique principale d'ouverture d'un panel de dossier
-   * @param {HTMLElement} button - Le bouton de dossier
-   */
-  async _openFolderPanel(button) {
-    const clickedFolderName = button.dataset.name;
-    const existingIndex = this.clickedFoldersLineage.indexOf(clickedFolderName);
+  async waitForCMSElements() {
+    const maxAttempts = 10;
+    const delayBetweenAttempts = 200;
+    let attempts = 0;
     
-    // Désactive temporairement tous les clics sur les folders
-    this.disableFoldersInteraction();
-    
-    // Calcule quels panels fermer et met à jour la lignée
-    const panelsToClose = this.calculatePanelsToClose(clickedFolderName, existingIndex);
-    
-    // Ferme les panels nécessaires avec animation
-    await this.closePanels(panelsToClose);
-    
-    // Active tous les boutons ayant le même nom
-    const folderSelector = `.menu_panel_collection_item.is-folder[data-name="${clickedFolderName}"]`;
-    const allMatchingButtons = document.querySelectorAll(folderSelector);
-    allMatchingButtons.forEach(btn => {
-      btn.classList.add("is-active");
-      this.animateFolderIcon(btn, true);
-    });
-    
-    // Ouvre le nouveau panel
-    this.openPanel(button, clickedFolderName);
-    
-    // Réactive les clics sur les folders après l'animation
-    setTimeout(() => {
-      this.enableFoldersInteraction();
-    }, CONFIG.ANIMATION.DURATION * 1000);
-  }
-
-  // ==========================================
-  // MÉTHODES UTILITAIRES
-  // ==========================================
-
-  /**
-   * Anime l'icône d'un bouton de dossier (chevron ↔ circle)
-   * @param {HTMLElement} button - Le bouton de dossier
-   * @param {boolean} isActivating - true pour chevron→circle, false pour circle→chevron
-   */
-  animateFolderIcon(button, isActivating = true) {
-    const firstIcon = button.querySelector('.menu_panel_collection_item_icon.is-first');
-    const secondIcon = button.querySelector('.menu_panel_collection_item_icon.is-last');
-    
-    // Détecte si on était en état hover (première icône visible)
-    const wasHovering = firstIcon && firstIcon.style.display !== 'none' && 
-                       window.getComputedStyle(firstIcon).opacity !== '0';
-    
-    if (isActivating && wasHovering) {
-      // Si on était en hover, part de l'état hover pour aller vers l'état actif
-      gsap.killTweensOf([firstIcon, secondIcon]);
+    while (attempts < maxAttempts) {
+      attempts++;
       
-      // Animation de transition hover → actif
-      gsap.fromTo(firstIcon, 
-        { x: 0, opacity: 1, display: 'block' }, // État hover actuel
-        {
-          x: -15,
-          opacity: 0,
-          duration: CONFIG.ANIMATION.DURATION,
-          ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-          onComplete: () => {
-            gsap.set(firstIcon, { display: 'none' });
-          }
-        }
-      );
+      // Attendre que le DOM se stabilise
+      await new Promise(resolve => setTimeout(resolve, delayBetweenAttempts));
       
-      gsap.fromTo(secondIcon,
-        { x: 15, opacity: 0, display: 'none' }, // État hover (cachée)
-        {
-          x: 0,
-          opacity: 1,
-          display: 'block',
-          duration: CONFIG.ANIMATION.DURATION,
-          ease: CONFIG.ANIMATION.EASE.POWER2.OUT
-        }
-      );
-    } else {
-      // Comportement normal (pas de hover avant le clic)
-      this.resetHoverState(button);
-    }
-    
-    const secondIconElement = button.querySelector('.menu_panel_collection_item_icon.is-last');
-    if (!secondIconElement) return;
-
-    const tl = gsap.timeline({ delay: wasHovering ? CONFIG.ANIMATION.DURATION : 0 });
-    
-    if (isActivating) {
-      // Activation : chevron → circle
-      tl.to(secondIconElement.querySelector('.folder_item_icon-chevron'), {
-        opacity: 0,
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.IN
-      }).to(secondIconElement.querySelector('.folder_item_icon-circle'), {
-        opacity: 1,
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      });
-    } else {
-      // Désactivation : circle → chevron
-      tl.to(secondIconElement.querySelector('.folder_item_icon-circle'), {
-        opacity: 0,
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.IN
-      }).to(secondIconElement.querySelector('.folder_item_icon-chevron'), {
-        opacity: 1,
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      });
-    }
-  }
-
-  /**
-   * Anime les icônes au hover (effet de glissement horizontal)
-   * @param {HTMLElement} button - Le bouton de dossier
-   * @param {boolean} isHovering - true pour hover in, false pour hover out
-   */
-  animateFolderHover(button, isHovering = true) {
-    // Ne pas animer si le dossier est déjà actif
-    if (button.classList.contains('is-active')) return;
-    
-    const firstIcon = button.querySelector('.menu_panel_collection_item_icon.is-first');
-    const secondIcon = button.querySelector('.menu_panel_collection_item_icon.is-last');
-    
-    if (!firstIcon || !secondIcon) return;
-
-    // Tue toutes les animations en cours sur ces icônes
-    gsap.killTweensOf([firstIcon, secondIcon]);
-
-    if (isHovering) {
-      // Hover in : affiche la première icône, cache la seconde
-      gsap.set(firstIcon, { display: 'block' });
+      // Chercher tous les boutons CMS
+      const allBtnItems = document.querySelectorAll('.menu_panel_collection_item.is-btn');
       
-      gsap.to(secondIcon, {
-        x: 15,
-        opacity: 0,
-        duration: 0.25,
-        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-        onComplete: () => {
-          gsap.set(secondIcon, { display: 'none' });
-        }
-      });
-      
-      gsap.fromTo(firstIcon, 
-        { x: -15, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.25,
-          ease: CONFIG.ANIMATION.EASE.POWER2.OUT
-        }
-      );
-      
-    } else {
-      // Hover out : TOUJOURS revenir à l'état initial (seconde icône visible)
-      gsap.set(secondIcon, { display: 'block' });
-      
-      gsap.to(firstIcon, {
-        x: -15,
-        opacity: 0,
-        duration: 0.25,
-        ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-        onComplete: () => {
-          gsap.set(firstIcon, { display: 'none' });
-        }
-      });
-      
-      // Force toujours le retour à l'état initial pour la seconde icône
-      gsap.to(secondIcon, {
-        x: 0,
-        opacity: 1,
-        duration: 0.25,
-        ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-        onComplete: () => {
-          // S'assure que l'état final est cohérent
-          gsap.set(firstIcon, { display: 'none', x: 0, opacity: 0 });
-          gsap.set(secondIcon, { display: 'block', x: 0, opacity: 1 });
-        }
-      });
-    }
-  }
-
-  /**
-   * Annule l'animation hover et remet les icônes dans l'état par défaut
-   * @param {HTMLElement} button - Le bouton de dossier
-   */
-  resetHoverState(button) {
-    const firstIcon = button.querySelector('.menu_panel_collection_item_icon.is-first');
-    const secondIcon = button.querySelector('.menu_panel_collection_item_icon.is-last');
-    
-    if (!firstIcon || !secondIcon) return;
-
-    // Tue toutes les animations en cours sur ces éléments
-    gsap.killTweensOf([firstIcon, secondIcon]);
-    
-    // Remet les icônes dans l'état par défaut (seconde icône visible)
-    gsap.set(firstIcon, { 
-      display: 'none', 
-      x: 0, 
-      opacity: 0
-    });
-    
-    gsap.set(secondIcon, { 
-      display: 'block', 
-      x: 0, 
-      opacity: 1
-    });
-  }
-
-  // ==========================================
-  // MÉTHODES DE CALCUL ET GESTION DE LA HIÉRARCHIE
-  // ==========================================
-
-  /**
-   * Calcule quels panels doivent être fermés et met à jour la lignée hiérarchique
-   * @param {string} clickedFolderName - Nom du dossier cliqué
-   * @param {number} existingIndex - Index du dossier dans la lignée (-1 si absent)
-   * @return {Array} - Liste des dossiers dont les panels doivent être fermés
-   */
-  calculatePanelsToClose(clickedFolderName, existingIndex) {
-    if (existingIndex !== -1) {
-      // Dossier déjà dans la lignée : fermer ses descendants
-      const panelsToClose = this.clickedFoldersLineage.slice(existingIndex + 1);
-      this.clickedFoldersLineage = this.clickedFoldersLineage.slice(0, existingIndex + 1);
-      return panelsToClose;
-    }
-
-    // Nouveau dossier : analyser sa position hiérarchique
-    const targetPanel = document.querySelector(`.menu_panel_item[data-parent="${clickedFolderName}"]`);
-    if (!targetPanel) {
-      // Dossier racine : fermer tout et réinitialiser
-      const panelsToClose = [...this.clickedFoldersLineage];
-      this.clickedFoldersLineage = [clickedFolderName];
-      return panelsToClose;
-    }
-
-    // Insertion dans la hiérarchie
-    const insertLevel = this.findInsertionLevel(targetPanel);
-    const panelsToClose = this.clickedFoldersLineage.slice(insertLevel + 1);
-    
-    this.clickedFoldersLineage = this.clickedFoldersLineage.slice(0, insertLevel + 1);
-    this.clickedFoldersLineage.push(clickedFolderName);
-    
-    return panelsToClose;
-  }
-
-  /**
-   * Trouve le niveau d'insertion optimal pour un nouveau dossier dans la hiérarchie
-   * @param {HTMLElement} targetPanel - Panel du dossier cliqué
-   * @return {number} - Niveau d'insertion (-1 si racine)
-   */
-  findInsertionLevel(targetPanel) {
-    const targetParent = document.querySelector(`.menu_panel_collection_item.is-folder[data-name="${targetPanel.dataset.parent}"]`);
-    
-    for (let i = 0; i < this.clickedFoldersLineage.length; i++) {
-      const lineageFolder = this.clickedFoldersLineage[i];
-      
-      // Parent direct trouvé
-      if (lineageFolder === targetParent.dataset.parent) {
-        return i;
-      }
-      
-      // Frère détecté (même parent)
-      const lineagePanel = document.querySelector(`.menu_panel_item[data-parent="${lineageFolder}"]`);
-      if (lineagePanel && lineagePanel.dataset.parent === targetParent) {
-        return i - 1;
+      if (allBtnItems.length > 0) {
+        this.cmsButtons = Array.from(allBtnItems);
+        return;
       }
     }
     
-    return -1; // Nouveau niveau racine
+    throw new Error('Impossible de charger les boutons CMS dans le délai imparti');
   }
 
-  // ==========================================
-  // MÉTHODES DE FERMETURE DES PANELS
-  // ==========================================
-
   /**
-   * Ferme une liste de panels avec animation séquentielle
-   * @param {Array} panelsToClose - Liste des noms de dossiers dont fermer les panels
+   * Attend que Finsweet Attributes List Nest soit chargé
+   * @returns {Promise<void>}
    */
-  async closePanels(panelsToClose) {
-    for (let i = panelsToClose.length - 1; i >= 0; i--) {
-      const folderToClose = panelsToClose[i];
-      const panelToClose = document.querySelector(`.menu_panel_item[data-parent="${folderToClose}"]`);
+  async waitForFinsweetAttributes() {
+    return new Promise((resolve) => {
+      // Initialise le système global Finsweet Attributes
+      window.FinsweetAttributes ||= [];
       
-      if (panelToClose && panelToClose.classList.contains('is-active')) {
-        // Désactive le scroll pour ce panel
-        if (this.smoothScrollManager) {
-          this.smoothScrollManager.disableMenuScroll(folderToClose);
-        }
-        
-        panelToClose.classList.remove('is-active');
-        
-        // Désactive les boutons de dossier associés
-        const folderBtns = document.querySelectorAll(`.menu_panel_collection_item.is-folder[data-name="${folderToClose}"]`);
-        folderBtns.forEach(btn => {
-          btn.classList.remove('is-active');
-          this.animateFolderIcon(btn, false);
-        });
-        
-        // Animation de fermeture avec nettoyage des classes
-        await new Promise(resolve => {
-          gsap.to(panelToClose, {
-            xPercent: -101,
-            duration: 0.3,
-            ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-            pointerEvents: "none",
-            onComplete: () => {
-              // Retire la classe is-big si présente
-              const parentPanel = panelToClose.closest(".menu_panel");
-              if (parentPanel?.classList.contains("is-big")) {
-                parentPanel.classList.remove("is-big");
-              }
-              resolve();
+      // Attendre que List Nest soit chargé
+      window.FinsweetAttributes.push([
+        'list',
+        async (listInstances) => {
+          // Attendre que toutes les instances soient chargées
+          const loadingPromises = listInstances.map(async (instance) => {
+            if (instance.loadingPaginatedItems) {
+              await instance.loadingPaginatedItems;
             }
           });
-        });
-      }
-    }
+          
+          await Promise.all(loadingPromises);
+          resolve();
+        }
+      ]);
+    });
   }
 
   /**
-   * Ouvre un panel de dossier avec animation et gestion des colonnes
-   * @param {HTMLElement} button - Bouton du dossier
-   * @param {string} folderName - Nom du dossier
+   * Initialise les positions des panels
    */
-  openPanel(button, folderName) {
-    button.classList.add("is-active");
-    this.animateFolderIcon(button, true);
-    const subMenu = document.querySelector(`.menu_panel_item[data-parent="${folderName}"]`);
-
-    // Gestion des panels à 2 colonnes
-    if (button.dataset.type === "2 colonnes") {
-      const parentPanel = document.querySelector(`.menu_panel_item[data-parent="${button.dataset.name}"]`)?.closest(".menu_panel");
-      if (parentPanel) {
-        parentPanel.classList.add("is-big");
-      }
-    }
-    
-    // Animation d'ouverture du sous-menu
-    if (subMenu) {
-      subMenu.classList.add('is-active');
-      
-      // Active le scroll pour ce panel de menu
-      if (this.smoothScrollManager) {
-        this.smoothScrollManager.enableMenuScroll(subMenu);
-      }
-      
-      gsap.to(subMenu, {
-        xPercent: 0,
-        duration: CONFIG.ANIMATION.DURATION,
-        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+  initPanelPositions() {
+    if (this.menuPanelItems) {
+      gsap.set(this.menuPanelItems, {
+        xPercent: -101,
+        opacity: 1,
         pointerEvents: "auto"
       });
     }
   }
 
-  // ==========================================
-  // MÉTHODES D'INITIALISATION DES PANELS
-  // ==========================================
-
   /**
-   * Initialise tous les panneaux de menu de manière dynamique
-   * Génère la structure HTML des sous-menus à partir des données existantes
+   * Initialise les événements de base
    */
-  initPanels() {
-    // Récupère tous les panneaux sauf le premier (qui existe déjà)
-    const menuPanels = gsap.utils.toArray(".menu_panel:not(.is-col-1)");
-
-    menuPanels.forEach((panel) => {
-      // Construit un tableau organisé des éléments de ce panneau
-      const panelArray = this.buildPanelArray(panel);
-      // Crée les éléments HTML pour ce panneau
-      this.createPanelItems(panel, panelArray);
-    });
-
-    // Place tous les éléments de menu hors écran initialement
-    gsap.set(".menu_panel_item", {
-      xPercent: -101,           // Décale complètement à gauche
-      pointerEvents: "none",    // Désactive les interactions
-    });
-  }
-
-  /**
-   * Construit un tableau organisé des éléments d'un panneau
-   * Regroupe les dossiers et articles par parent
-   * @param {HTMLElement} panel - Le panneau à analyser
-   * @return {Array} - Tableau organisé des éléments
-   */
-  buildPanelArray(panel) {
-    const folderWrap = panel.querySelector(".menu_panel_folders");
-    const articleWrap = panel.querySelector(".menu_panel_articles");
-    const panelArray = [];
-
-    // Traite les dossiers s'ils existent
-    if (folderWrap) {
-      this.processItems(folderWrap, ".menu_panel_collection_item", panelArray, "folders");
-    }
-
-    // Traite les articles s'ils existent
-    if (articleWrap) {
-      this.processItems(articleWrap, ".menu_panel_collection_item", panelArray, "articles");
-    }
-
-    return panelArray;
-  }
-
-  /**
-   * Traite une liste d'éléments et les organise par parent
-   * Clone directement les éléments HTML pour réutilisation
-   * @param {HTMLElement} wrapper - Container des éléments
-   * @param {string} selector - Sélecteur CSS des éléments à traiter
-   * @param {Array} panelArray - Tableau où stocker les résultats
-   * @param {string} type - Type d'éléments ("folders" ou "articles")
-   */
-  processItems(wrapper, selector, panelArray, type) {
-    const itemList = gsap.utils.toArray(wrapper.querySelectorAll(selector));
+  initBasicEvents() {
+    // Ouverture du menu
+    this.menuButton.addEventListener('click', () => this.openMenu());
     
-    itemList.forEach((item) => {
-      const parent = item.dataset.parent;
-      const name = item.dataset.name;
-      const title = item.dataset.title;
-      const parentTitle = document.querySelector(`.menu_panel_collection_item[data-name=${parent}]`);
-
-      // Clone l'élément HTML pour réutilisation
-      const clonedItem = item.cloneNode(true);
-      
-      // Nettoie les IDs pour éviter les doublons
-      this.clearElementIds(clonedItem);
-
-      // Cherche si un objet parent existe déjà
-      let parentObj = panelArray.find(el => el.parent === parent);
-      
-      if (parentObj) {
-        // Ajoute l'élément cloné au parent existant
-        if (!parentObj.items[type]) {
-          parentObj.items[type] = [];
+    // Fermeture par overlay
+    if (this.menuOverlay) {
+      this.menuOverlay.addEventListener('click', (e) => {
+        if (e.target === this.menuOverlay) {
+          this.closeMenu();
         }
-        parentObj.items[type].push(clonedItem);
-      } else {
-        // Crée un nouveau parent avec l'élément cloné
-        const newParentObj = {
-          parent: parent,
-          name: name,
-          title: parentTitle ? parentTitle.dataset.title : title,
-          items: { [type]: [clonedItem] }
-        };
-        panelArray.push(newParentObj);
+      });
+    }
+    
+    // Fermeture par bouton exit
+    this.menuExit.forEach(exitBtn => {
+      exitBtn.addEventListener('click', () => {
+        const parentPanel = exitBtn.closest('.menu_panel_item');
+        
+        if (parentPanel?.dataset.name) {
+          this.closePanel(parentPanel.dataset.name);
+        } else {
+          this.closeMenu();
+        }
+      });
+    });
+
+    // Événements pour les boutons CMS
+    this.cmsButtons.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openPanel(btn);
+      });
+    });
+
+    // Événements pour les liens de menu avec data-menu-link
+    this.initMenuLinkEvents();
+  }
+
+  // ==========================================
+  // MÉTHODES DE NAVIGATION DIRECTE
+  // ==========================================
+
+  /**
+   * Initialise les événements pour les liens avec data-menu-link
+   */
+  initMenuLinkEvents() {
+    // Écouter les clics sur tous les éléments avec data-menu-link
+    document.addEventListener('click', (e) => {
+      const menuLinkElement = e.target.closest('[data-menu-link]');
+      
+      if (menuLinkElement) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const targetPanelName = menuLinkElement.dataset.menuLink;
+        if (targetPanelName) {
+          this.navigateToPanel(targetPanelName);
+        }
       }
     });
   }
 
   /**
-   * Crée les éléments HTML pour tous les items d'un panneau
-   * @param {HTMLElement} panel - Le panneau de destination
-   * @param {Array} panelArray - Tableau des éléments à créer
+   * Navigue directement vers un panel en ouvrant tous ses ancêtres
+   * @param {string} targetPanelName - Le data-name du panel cible
    */
-  createPanelItems(panel, panelArray) {
-    panelArray.forEach((item) => {
-      const element = this.createPanelElement(item);
-      panel.appendChild(element);
-    });
-  }
-
-  /**
-   * Crée un élément HTML complet pour un item de menu
-   * Utilise les éléments HTML clonés pour optimiser les performances
-   * @param {Object} item - L'objet contenant les éléments clonés
-   * @return {HTMLElement} - L'élément HTML créé
-   */
-  createPanelElement(item) {
-    // Crée le container principal
-    const element = document.createElement("div");
-    element.classList.add("menu_panel_item");
-    element.dataset.parent = item.parent;
-    element.dataset.name = item.name;
-    element.dataset.title = item.title;
+  async navigateToPanel(targetPanelName) {
+    // Construire le chemin complet vers le panel cible
+    const ancestorPath = this.buildAncestorPath(targetPanelName);
     
-    // Crée le titre
-    const titleWrap = document.createElement("div");
-    titleWrap.classList.add("menu_panel_item_top");
-    titleWrap.innerHTML = `<div class="menu_panel_item_top-inner"><p class="menu_panel_item_title">${item.title}</p><svg class="menu_exit" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 8L12 12M12 12L16 16M12 12L16 8M12 12L8 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>`;
-    element.appendChild(titleWrap);
-    
-    // Crée la liste des éléments
-    const listWrapper = document.createElement("div");
-    listWrapper.classList.add("menu_panel_item_middle");
-    const list = document.createElement("div");
-    listWrapper.appendChild(list);
-    
-    // Ajoute les dossiers clonés s'ils existent
-    if (item.items.folders) {
-			list.classList.add("menu_panel_collection_list", "is-folder");
-      this.addClonedFoldersToList(list, item.items.folders);
+    if (ancestorPath.length === 0) {
+      console.warn(`Panel "${targetPanelName}" introuvable`);
+      return;
     }
-    
-    // Ajoute les articles clonés s'ils existent
-    if (item.items.articles) {
-			list.classList.add("menu_panel_collection_list", "is-articles");
-      this.addClonedArticlesToList(list, item.items.articles);
-    }
-    
-    element.appendChild(listWrapper);
-    return element;
-  }
 
-  /**
-   * Ajoute les dossiers clonés à la liste avec leurs événements
-   * @param {HTMLElement} list - La liste de destination
-   * @param {Array} clonedFolders - Les dossiers clonés à ajouter
-   */
-  addClonedFoldersToList(list, clonedFolders) {
-    clonedFolders.forEach((clonedFolder) => {
-      // Utilise directement l'élément cloné
-      const folderElement = clonedFolder.cloneNode(true);
-      
-      // Ajoute les événements nécessaires
-      folderElement.addEventListener("click", () => this.handleFolderClick(folderElement));
-      folderElement.addEventListener("mouseenter", () => this.animateFolderHover(folderElement, true));
-      folderElement.addEventListener("mouseleave", () => this.animateFolderHover(folderElement, false));
-      
-      list.appendChild(folderElement);
-    });
-  }
-
-  /**
-   * Ajoute les articles clonés à la liste
-   * @param {HTMLElement} list - La liste de destination
-   * @param {Array} clonedArticles - Les articles clonés à ajouter
-   */
-  addClonedArticlesToList(list, clonedArticles) {
-    clonedArticles.forEach((clonedArticle) => {
-      // Utilise directement l'élément cloné
-      const articleElement = clonedArticle.cloneNode(true);
-      list.appendChild(articleElement);
-    });
-  }
-
-  /**
-   * Nettoie récursivement tous les IDs d'un élément et de ses enfants
-   * pour éviter les doublons lors du clonage
-   * @param {HTMLElement} element - L'élément à nettoyer
-   */
-  clearElementIds(element) {
-    // Supprime l'ID de l'élément principal
-    if (element.id) {
-      element.removeAttribute('id');
-    }
-    
-    // Supprime les IDs de tous les enfants
-    const elementsWithIds = element.querySelectorAll('[id]');
-    elementsWithIds.forEach(el => el.removeAttribute('id'));
-  }
-
-  // ==========================================
-  // MÉTHODES DE NAVIGATION AUTOMATIQUE
-  // ==========================================
-
-  /**
-   * Navigue automatiquement vers un élément spécifique du menu
-   * Ouvre tous les panels ancêtres nécessaires pour atteindre l'élément cible
-   * @param {string} targetName - Le nom de l'élément ciblé (data-name)
-   */
-  async navigateToMenuItem(targetName) {
-    // Ouvre le menu si nécessaire
+    // Ouvrir le menu s'il n'est pas déjà ouvert
     if (!this.menu.classList.contains("is-active")) {
       this.openMenu();
+      
+      // Attendre que l'animation d'ouverture soit terminée
       await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000));
     }
 
-    // Détermine et ouvre le chemin hiérarchique
-    const ancestorPath = this.buildAncestorPath(targetName);
-    await this.openAncestorPanels(ancestorPath);
+    // Naviguer vers le panel cible en ouvrant tous les ancêtres
+    await this.openAncestorPath(ancestorPath);
   }
 
   /**
-   * Trouve un élément de menu par son nom dans tous les panels
-   * @param {string} elementName - Le nom de l'élément à trouver
-   * @return {HTMLElement|null} - L'élément trouvé ou null
+   * Construit le chemin complet d'ancêtres vers un panel cible
+   * @param {string} targetPanelName - Le data-name du panel cible
+   * @returns {string[]} - Array des data-name des ancêtres (du plus proche à la racine vers le panel cible)
    */
-  findMenuElement(elementName) {
-    // Cherche d'abord dans les éléments de dossiers
-    let element = document.querySelector(`.menu_panel_collection_item[data-name="${elementName}"]`);
-    
-    // Si pas trouvé, cherche dans les articles générés dynamiquement
-    if (!element) {
-      element = document.querySelector(`.menu_panel_item_list_item[data-name="${elementName}"]`);
-    }
-
-    return element;
-  }
-
-  /**
-   * Construit le chemin complet des ancêtres pour atteindre un élément
-   * @param {string} targetName - Le nom de l'élément ciblé
-   * @return {Array} - Tableau des noms des ancêtres dans l'ordre hiérarchique
-   */
-  buildAncestorPath(targetName) {
+  buildAncestorPath(targetPanelName) {
     const path = [];
-    let currentElement = this.findMenuElement(targetName);
-    
-    if (!currentElement) return path;
+    let currentPanelName = targetPanelName;
 
-    // Remonte la hiérarchie via les data-parent
-    while (currentElement && currentElement.dataset.parent) {
-      const parentName = currentElement.dataset.parent;
-      path.unshift(parentName); // Ajoute au début pour avoir l'ordre hiérarchique
+    // Remonter la hiérarchie jusqu'à la racine
+    while (currentPanelName) {
+      const button = this.findButtonByPanelName(currentPanelName);
       
-      // Trouve l'élément parent
-      currentElement = this.findMenuElement(parentName);
+      if (!button) {
+        // Panel introuvable, abandonner
+        return [];
+      }
+
+      path.unshift(currentPanelName); // Ajouter au début pour avoir l'ordre correct
+      currentPanelName = button.dataset.parent; // Remonter au parent
     }
 
     return path;
   }
 
   /**
-   * Ouvre séquentiellement tous les panels ancêtres
-   * @param {Array} ancestorPath - Chemin des ancêtres à ouvrir
+   * Ouvre séquentiellement tous les panels dans le chemin d'ancêtres
+   * @param {string[]} ancestorPath - Array des panels à ouvrir dans l'ordre
    */
-  async openAncestorPanels(ancestorPath) {
-    for (const ancestorName of ancestorPath) {
-      const folderSelector = `.menu_panel_collection_item.is-folder[data-name="${ancestorName}"]`;
-      const ancestorButton = document.querySelector(folderSelector);
+  async openAncestorPath(ancestorPath) {
+    // Fermer tous les panels actuellement ouverts qui ne sont pas dans le nouveau chemin
+    await this.closeNonMatchingPanels(ancestorPath);
+
+    // Ouvrir séquentiellement chaque panel du chemin
+    for (let i = 0; i < ancestorPath.length; i++) {
+      const panelName = ancestorPath[i];
       
-      if (ancestorButton && !ancestorButton.classList.contains("is-active")) {
-        // Utilise la méthode spécifique pour la navigation automatique
-        await this.handleFolderClickForced(ancestorButton);
-        // Petite pause pour laisser l'animation se terminer
-        await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000 + 100));
+      // Vérifier si ce panel est déjà ouvert (présent dans l'historique)
+      if (!this.navigationHistory.includes(panelName)) {
+        // Ajouter à l'historique et ouvrir le panel
+        this.addToNavigationHistory(panelName);
+        this.showPanel(panelName);
+        
+        // Attendre que l'animation soit terminée avant de passer au suivant
+        if (i < ancestorPath.length - 1) { // Pas d'attente pour le dernier
+          await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000));
+        }
       }
     }
   }
 
   /**
-   * Initialise les liens de navigation depuis les éléments slider
-   * Permet la navigation automatique vers des éléments spécifiques du menu
+   * Ferme les panels qui ne correspondent pas au nouveau chemin
+   * @param {string[]} newPath - Le nouveau chemin d'ancêtres
    */
-  initSliderMenuLinks() {
-    const menuLinks = document.querySelectorAll('[data-menu-link]');
+  async closeNonMatchingPanels(newPath) {
+    // Trouver le point de divergence entre l'historique actuel et le nouveau chemin
+    let divergenceIndex = -1;
     
-    menuLinks.forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+    for (let i = 0; i < Math.min(this.navigationHistory.length, newPath.length); i++) {
+      if (this.navigationHistory[i] !== newPath[i]) {
+        divergenceIndex = i;
+        break;
+      }
+    }
+
+    // Si pas de divergence mais l'historique est plus long, commencer la fermeture après le dernier élément commun
+    if (divergenceIndex === -1 && this.navigationHistory.length > newPath.length) {
+      divergenceIndex = newPath.length;
+    }
+
+    // S'il y a des panels à fermer
+    if (divergenceIndex !== -1 && divergenceIndex < this.navigationHistory.length) {
+      const panelsToClose = this.navigationHistory.slice(divergenceIndex);
+      
+      // Mettre à jour l'historique
+      this.navigationHistory = this.navigationHistory.slice(0, divergenceIndex);
+
+      // Récupérer les éléments DOM
+      const panelElements = panelsToClose
+        .map(panelName => document.querySelector(`.menu_panel_item[data-name="${panelName}"]`))
+        .filter(panel => panel !== null);
+
+      if (panelElements.length > 0) {
+        // Fermer dans l'ordre inverse (du plus profond au moins profond)
+        const reversedPanels = [...panelElements].reverse();
         
-        const targetName = link.dataset.menuLink;
-        this.navigateToMenuItem(targetName);
-      });
+        // Attendre que toutes les fermetures soient terminées
+        await new Promise(resolve => {
+          this.animatePanelsSequentially(reversedPanels, resolve);
+        });
+      }
+    }
+  }
+
+  /**
+   * Ouvre un panel via un lien de menu
+   * @param {string} panelName - Le data-name du panel à ouvrir
+   */
+  openPanelByLink(panelName) {
+    // Vérifier si le panel est déjà dans l'historique (ancêtre)
+    const existingIndex = this.navigationHistory.indexOf(panelName);
+    
+    if (existingIndex !== -1) {
+      // Le panel est un ancêtre : ne rien faire
+      return;
+    }
+
+    // Nouveau panel : vérifier s'il a des frères à fermer
+    this.handleSiblingLogic(panelName);
+  }
+
+  // ==========================================
+  // MÉTHODES D'OUVERTURE/FERMETURE
+  // ==========================================
+
+  /**
+   * Ouvre le menu principal
+   */
+  openMenu() {
+    if (this.menu.classList.contains("is-active")) {
+      return;
+    }
+
+    // Désactive le scroll principal
+    if (this.smoothScrollManager) {
+      this.smoothScrollManager.disableScroll();
+    }
+    
+    // Active le menu et ses éléments
+    this.menu.classList.add("is-active");
+    this.menuFirstPanel.classList.add("is-active");
+    if (this.menuOverlay) {
+      this.menuOverlay.classList.add("is-active");
+    }
+    
+    // Animation d'entrée du premier panel
+    gsap.to(this.menuFirstPanelItem, {
+      duration: CONFIG.ANIMATION.DURATION,
+      ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+      xPercent: 0,
+      pointerEvents: "auto"
     });
   }
 
-  // ==========================================
-  // MÉTHODES DE FERMETURE SPÉCIALISÉES
-  // ==========================================
-
   /**
-   * Ferme un panel spécifique et ses descendants via bouton de fermeture
-   * @param {HTMLElement} exitButton - Le bouton de fermeture cliqué
+   * Ferme le menu principal et réinitialise l'historique
    */
-  async closePanelFromExitButton(exitButton) {
-    const panelItem = exitButton.closest('.menu_panel_item');
-    
-    // Vérifie si on est sur le premier panel
-    if (panelItem.closest('.menu_panel').classList.contains('is-col-1')) {
-      this.closeEntireMenu();
+  closeMenu() {
+    if (!this.menu.classList.contains("is-active")) {
       return;
     }
-    
-    // Désactive temporairement tous les clics sur les folders
-    this.disableFoldersInteraction();
-    
-    // Fermeture ciblée du panel et de ses descendants
-    const panelParentName = panelItem.dataset.parent;
-    const parentIndex = this.clickedFoldersLineage.indexOf(panelParentName);
-    
-    if (parentIndex !== -1) {
-      // Ferme les descendants puis le panel actuel
-      const descendantsToClose = this.clickedFoldersLineage.slice(parentIndex + 1);
-      await this.closePanels(descendantsToClose);
-      
-      this.clickedFoldersLineage = this.clickedFoldersLineage.slice(0, parentIndex + 1);
-      
-      await this.closePanels([panelParentName]);
-      this.clickedFoldersLineage = this.clickedFoldersLineage.slice(0, parentIndex);
+
+    // Si il y a des panels ouverts dans l'historique, les fermer d'abord
+    if (this.navigationHistory.length > 0) {
+      // Récupérer tous les panels ouverts
+      const allOpenPanels = this.navigationHistory
+        .map(panelName => document.querySelector(`.menu_panel_item[data-name="${panelName}"]`))
+        .filter(panel => panel !== null);
+
+      if (allOpenPanels.length > 0) {
+        // Inverser l'ordre pour commencer par le dernier panel (le plus profond)
+        const reversedPanels = [...allOpenPanels].reverse();
+
+        // Animer séquentiellement tous les panels, puis fermer le menu
+        this.animatePanelsSequentially(reversedPanels, () => {
+          // Callback exécuté après que tous les panels soient fermés
+          this.closeMenuFinal();
+        });
+        
+        // Réinitialiser l'historique immédiatement
+        this.clearNavigationHistory();
+        return;
+      }
     }
-    
-    // Réactive les clics sur les folders après l'animation
-    setTimeout(() => {
-      this.enableFoldersInteraction();
-    }, CONFIG.ANIMATION.DURATION * 1000);
+
+    // Si pas de panels ouverts, fermer directement le menu
+    this.closeMenuFinal();
   }
 
   /**
-   * Ferme complètement le menu (premier panel ou overlay)
+   * Ferme définitivement le menu après fermeture des panels
    */
-  async closeEntireMenu() {
-    if (!this.menu.classList.contains("is-active")) return;
-    
-    // Désactive temporairement tous les clics sur les folders
-    this.disableFoldersInteraction();
-    
-    // Ferme tous les panels ouverts de manière séquentielle
-    const allOpenPanels = [...this.clickedFoldersLineage];
-    await this.closePanels(allOpenPanels);
-      
-    // Anime la fermeture du premier panneau APRÈS avoir fermé les autres
+  closeMenuFinal() {
+    // Animation de sortie du premier panel
     gsap.to(this.menuFirstPanelItem, {
       duration: CONFIG.ANIMATION.DURATION,
       ease: CONFIG.ANIMATION.EASE.POWER2.IN,
       xPercent: -101,
-      pointerEvents: "none",
       onComplete: () => {
-        // Désactive le menu et l'overlay
+        // Désactive le menu et ses éléments
         this.menu.classList.remove("is-active");
         this.menuFirstPanel.classList.remove("is-active");
         if (this.menuOverlay) {
           this.menuOverlay.classList.remove("is-active");
         }
         
-        // Nettoie toutes les instances de scroll des menus et réactive le scroll principal
+        // Réactive le scroll principal
         if (this.smoothScrollManager) {
-          this.smoothScrollManager.cleanupMenuScrolls();
           this.smoothScrollManager.enableScroll();
         }
-        
-        // Réinitialise complètement l'état des panels
-        this.resetAllPanels();
-        this.clickedFoldersLineage = [];
-        
-        // Réactive les clics sur les folders
-        this.enableFoldersInteraction();
+        const panelMiddle = this.menuFirstPanelItem.querySelector('.menu_panel_item_middle');
+          if (panelMiddle) {
+            panelMiddle.scrollTop = 0; // Réinitialiser le scroll du panel
+          }
       }
     });
   }
 
   /**
-   * Remet tous les panels dans leur état initial après fermeture complète
+   * Ouvre un panel et gère la navigation hiérarchique
+   * @param {HTMLElement} btn - Le bouton cliqué
    */
-  resetAllPanels() {
-    // Retire toutes les classes is-active des panels SAUF le premier panel
-    const allPanelItems = document.querySelectorAll('.menu_panel_item');
-    allPanelItems.forEach(panel => {
-      // Ne pas affecter le premier panel qui est dans menu_panel.is-col-1
-      if (!panel.closest('.menu_panel.is-col-1')) {
-        panel.classList.remove('is-active');
-      }
-    });
-    
-    // Retire toutes les classes is-active des boutons de dossiers
-    const allFolderButtons = document.querySelectorAll('.menu_panel_collection_item.is-folder');
-    allFolderButtons.forEach(button => {
-      button.classList.remove('is-active');
-      this.animateFolderIcon(button, false);
-      
-      // Retire l'attribut de tracking SEULEMENT pour les boutons qui ne sont PAS dans le premier panel
-      if (!button.closest('.menu_panel.is-col-1')) {
-        button.removeAttribute('data-click-attached');
-      }
-    });
-    
-    // Retire toutes les classes is-big des menu_panel
-    const allMenuPanels = document.querySelectorAll('.menu_panel.is-big');
-    allMenuPanels.forEach(panel => {
-      panel.classList.remove('is-big');
-    });
-    
-    // Remet tous les panels à leur position initiale SAUF le premier panel
-    const panelsToReset = document.querySelectorAll('.menu_panel_item');
-    panelsToReset.forEach(panel => {
-      if (!panel.closest('.menu_panel.is-col-1')) {
-        gsap.set(panel, {
-          xPercent: -101,
-          pointerEvents: "none"
-        });
-      }
-    });
-  }
+  openPanel(btn) {
+    if (!btn.dataset.name) {
+      return;
+    }
 
-  // ==========================================
-  // MÉTHODES DE GESTION DES ÉVÉNEMENTS
-  // ==========================================
+    const panelName = btn.dataset.name;
+    
+    // Vérifier si le panel est déjà dans l'historique (ancêtre)
+    const existingIndex = this.navigationHistory.indexOf(panelName);
+    
+    if (existingIndex !== -1) {
+      // Le panel est un ancêtre : ne rien faire
+      return;
+    }
 
-  /**
-   * Initialise les boutons de fermeture du menu (classe menu_exit)
-   * Utilise la délégation d'événements pour les éléments générés dynamiquement
-   */
-  initMenuExitButtons() {
-    this.menu.addEventListener('click', (e) => {
-      const exitButton = e.target.closest('.menu_exit');
-      if (exitButton) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.closePanelFromExitButton(exitButton);
-      }
-    });
+    // Nouveau panel : vérifier s'il a des frères à fermer
+    this.handleSiblingLogic(panelName);
   }
 
   /**
-   * Initialise le clic sur l'overlay pour fermer complètement le menu
+   * Gère la logique de navigation entre frères
+   * @param {string} newPanelName - Le data-name du nouveau panel
    */
-  initOverlayClick() {
-    if (this.menuOverlay) {
-      this.menuOverlay.addEventListener('click', () => {
-        this.closeEntireMenu();
-      });
+  handleSiblingLogic(newPanelName) {
+    // Trouver le bouton du nouveau panel
+    const newPanelButton = this.findButtonByPanelName(newPanelName);
+    if (!newPanelButton) {
+      this.navigateToNewPanel(newPanelName);
+      return;
+    }
+
+    // Chercher un ancêtre dans l'historique
+    const ancestorInfo = this.findAncestorInHistory(newPanelButton);
+    
+    if (ancestorInfo) {
+      // Ancêtre trouvé, fermer ses descendants et ouvrir le nouveau
+      this.closeSiblingsAndOpenNew(ancestorInfo.siblingsToClose, ancestorInfo.ancestorName, newPanelName);
+    } else {
+      // Pas d'ancêtre, ouvrir directement
+      this.navigateToNewPanel(newPanelName);
     }
   }
 
-  // ==========================================
-  // MÉTHODES DE GESTION DE L'INTERACTION DES FOLDERS
-  // ==========================================
+  /**
+   * Trouve un ancêtre du nouveau panel dans l'historique de navigation
+   * @param {HTMLElement} newPanelButton - Le bouton du nouveau panel
+   * @returns {Object|null} - {ancestorName, siblingsToClose} ou null
+   */
+  findAncestorInHistory(newPanelButton) {
+    // Utiliser l'attribut data-parent pour trouver le parent
+    const parentName = newPanelButton.dataset.parent;
+    
+    if (!parentName) {
+      // Niveau racine : fermer tout l'historique si nécessaire
+      if (this.navigationHistory.length > 0) {
+        return {
+          ancestorName: null,
+          siblingsToClose: [...this.navigationHistory]
+        };
+      }
+      return null;
+    }
+    
+    // Vérifier si le parent est dans l'historique
+    if (this.navigationHistory.includes(parentName)) {
+      const parentIndex = this.navigationHistory.indexOf(parentName);
+      const siblingsToClose = this.navigationHistory.slice(parentIndex + 1);
+      
+      if (siblingsToClose.length > 0) {
+        return {
+          ancestorName: parentName,
+          siblingsToClose: siblingsToClose
+        };
+      }
+    }
+    
+    return null;
+  }
 
   /**
-   * Désactive temporairement l'interaction avec tous les folders
-   * pour éviter les clics simultanés pendant les animations
+   * Ferme les frères et descendants, puis ouvre le nouveau panel
+   * @param {string[]} siblingsToClose - Panels à fermer
+   * @param {string|null} ancestorName - Panel ancêtre ou null
+   * @param {string} newPanelName - Nouveau panel à ouvrir
    */
-  disableFoldersInteraction() {
-    const allFolders = document.querySelectorAll('.menu_panel_collection_item.is-folder');
-    allFolders.forEach(folder => {
-      folder.style.pointerEvents = 'none';
+  closeSiblingsAndOpenNew(siblingsToClose, ancestorName, newPanelName) {
+    // Récupérer les éléments DOM à fermer
+    const siblingElements = siblingsToClose
+      .map(siblingName => document.querySelector(`.menu_panel_item[data-name="${siblingName}"]`))
+      .filter(panel => panel !== null);
+
+    if (siblingElements.length === 0) {
+      this.navigateToNewPanel(newPanelName);
+      return;
+    }
+
+    // Mettre à jour l'historique
+    if (ancestorName) {
+      const ancestorIndex = this.navigationHistory.indexOf(ancestorName);
+      if (ancestorIndex !== -1) {
+        this.navigationHistory = this.navigationHistory.slice(0, ancestorIndex + 1);
+      }
+    } else {
+      this.navigationHistory = [];
+    }
+
+    // Fermer les panels puis ouvrir le nouveau
+    const reversedSiblings = [...siblingElements].reverse();
+    this.animatePanelsSequentially(reversedSiblings, () => {
+      this.navigateToNewPanel(newPanelName);
     });
   }
 
   /**
-   * Réactive l'interaction avec tous les folders
-   * après la fin des animations
+   * Trouve un bouton par son data-name
+   * @param {string} panelName - Le data-name du panel
+   * @returns {HTMLElement|null} - Le bouton trouvé ou null
    */
-  enableFoldersInteraction() {
-    const allFolders = document.querySelectorAll('.menu_panel_collection_item.is-folder');
-    allFolders.forEach(folder => {
-      folder.style.pointerEvents = 'auto';
+  findButtonByPanelName(panelName) {
+    return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null;
+  }
+
+  /**
+   * Navigue vers un nouveau panel
+   * @param {string} panelName - Le data-name du panel
+   */
+  navigateToNewPanel(panelName) {
+    // Ajouter à l'historique
+    this.addToNavigationHistory(panelName);
+    
+    // Ouvrir le panel
+    this.showPanel(panelName);
+  }
+
+  /**
+   * Affiche un panel avec animation
+   * @param {string} panelName - Le data-name du panel
+   */
+  showPanel(panelName) {
+    const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+    
+    if (!panel) {
+      return;
+    }
+
+    // Animer l'ouverture du panel
+    gsap.to(panel, {
+      duration: CONFIG.ANIMATION.DURATION,
+      ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+      xPercent: 0,
     });
+  }
+
+  /**
+   * Ajoute un panel à l'historique
+   * @param {string} panelName - Le data-name du panel
+   */
+  addToNavigationHistory(panelName) {
+    // Éviter les doublons consécutifs
+    if (this.navigationHistory[this.navigationHistory.length - 1] !== panelName) {
+      this.navigationHistory.push(panelName);
+    }
+  }
+
+  /**
+   * Ferme un panel et ses descendants
+   * @param {string} panelName - Le data-name du panel à fermer
+   * @returns {boolean} - True si la fermeture a été effectuée
+   */
+  closePanel(panelName) {
+    if (!panelName) {
+      return false;
+    }
+
+    // Trouver l'index du panel dans l'historique
+    const panelIndex = this.navigationHistory.indexOf(panelName);
+    
+    if (panelIndex === -1) {
+      return false;
+    }
+
+    // Récupérer tous les panels à fermer (le panel et ses descendants)
+    const panelsToClose = this.navigationHistory.slice(panelIndex);
+    
+    // Mettre à jour l'historique en supprimant le panel et ses descendants
+    this.navigationHistory = this.navigationHistory.slice(0, panelIndex);
+
+    // Récupérer les éléments DOM pour les panels à fermer
+    const panelElements = panelsToClose
+      .map(closePanelName => document.querySelector(`.menu_panel_item[data-name="${closePanelName}"]`))
+      .filter(panel => panel !== null);
+
+    if (panelElements.length === 0) {
+      return false;
+    }
+
+    // Inverser l'ordre pour commencer par le dernier panel (le plus profond)
+    const reversedPanels = [...panelElements].reverse();
+
+    // Animer séquentiellement - chaque panel attend que le précédent soit terminé
+    this.animatePanelsSequentially(reversedPanels);
+
+    return true;
+  }
+
+  /**
+   * Anime les panels séquentiellement
+   * @param {HTMLElement[]} panels - Panels à animer
+   * @param {Function} onComplete - Callback optionnel
+   */
+  animatePanelsSequentially(panels, onComplete = null) {
+    if (panels.length === 0) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    // Fonction récursive pour animer un panel puis passer au suivant
+    const animateNextPanel = (index) => {
+      if (index >= panels.length) {
+        // Toutes les animations sont terminées
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const panel = panels[index];
+      
+      gsap.to(panel, {
+        duration: CONFIG.ANIMATION.DURATION,
+        ease: CONFIG.ANIMATION.EASE.POWER2.IN,
+        xPercent: -101,
+        onComplete: () => {
+          // Animation terminée, passer au suivant
+          animateNextPanel(index + 1);
+          const panelMiddle = panel.querySelector('.menu_panel_item_middle');
+          if (panelMiddle) {
+            panelMiddle.scrollTop = 0; // Réinitialiser le scroll du panel
+          }
+        }
+      });
+    };
+
+    // Démarrer l'animation avec le premier panel
+    animateNextPanel(0);
+  }
+
+  /**
+   * Réinitialise l'historique
+   */
+  clearNavigationHistory() {
+    this.navigationHistory = [];
   }
 }
