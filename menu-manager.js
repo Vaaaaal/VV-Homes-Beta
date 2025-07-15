@@ -25,6 +25,10 @@ export class MenuManager {
     
     // Historique de navigation
     this.navigationHistory = [];
+    
+    // Statuts actifs
+    this.activeElements = new Set(); // Ensemble des éléments actuellement actifs
+    this.currentActivePath = [];     // Chemin actuel des éléments actifs (hiérarchie)
   }
 
   // ==========================================
@@ -50,6 +54,9 @@ export class MenuManager {
       // Initialiser les positions et événements
       this.initPanelPositions();
       this.initBasicEvents();
+      
+      // Randomiser les cartes de review
+      await this.randomizeReviewCards();
       
     } catch (error) {
       console.error('Erreur lors de l\'initialisation du menu:', error);
@@ -256,6 +263,9 @@ export class MenuManager {
         this.addToNavigationHistory(panelName);
         this.showPanel(panelName);
         
+        // Mettre à jour les états actifs pour ce panel
+        this.updateActiveStatesOnOpen(panelName);
+        
         // Attendre que l'animation soit terminée avant de passer au suivant
         if (i < ancestorPath.length - 1) { // Pas d'attente pour le dernier
           await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000));
@@ -290,6 +300,11 @@ export class MenuManager {
       
       // Mettre à jour l'historique
       this.navigationHistory = this.navigationHistory.slice(0, divergenceIndex);
+
+      // Mettre à jour les états actifs
+      if (panelsToClose.length > 0) {
+        this.updateActiveStatesOnClose(panelsToClose[0]);
+      }
 
       // Récupérer les éléments DOM
       const panelElements = panelsToClose
@@ -383,8 +398,9 @@ export class MenuManager {
           this.closeMenuFinal();
         });
         
-        // Réinitialiser l'historique immédiatement
+        // Réinitialiser l'historique et les états actifs immédiatement
         this.clearNavigationHistory();
+        this.clearAllActiveStates();
         return;
       }
     }
@@ -532,6 +548,11 @@ export class MenuManager {
       this.navigationHistory = [];
     }
 
+    // Mettre à jour les états actifs après modification de l'historique
+    if (siblingsToClose.length > 0) {
+      this.updateActiveStatesOnClose(siblingsToClose[0]);
+    }
+
     // Fermer les panels puis ouvrir le nouveau
     const reversedSiblings = [...siblingElements].reverse();
     this.animatePanelsSequentially(reversedSiblings, () => {
@@ -558,6 +579,9 @@ export class MenuManager {
     
     // Ouvrir le panel
     this.showPanel(panelName);
+    
+    // Mettre à jour les états actifs
+    this.updateActiveStatesOnOpen(panelName);
   }
 
   /**
@@ -612,6 +636,9 @@ export class MenuManager {
     
     // Mettre à jour l'historique en supprimant le panel et ses descendants
     this.navigationHistory = this.navigationHistory.slice(0, panelIndex);
+
+    // Mettre à jour les états actifs
+    this.updateActiveStatesOnClose(panelName);
 
     // Récupérer les éléments DOM pour les panels à fermer
     const panelElements = panelsToClose
@@ -676,5 +703,296 @@ export class MenuManager {
    */
   clearNavigationHistory() {
     this.navigationHistory = [];
+  }
+
+  // ==========================================
+  // MÉTHODES DE GESTION DES STATUTS ACTIFS
+  // ==========================================
+
+  /**
+   * Met à jour les statuts actifs de tous les éléments de navigation
+   * en fonction de l'historique de navigation actuel
+   */
+  updateActiveStates() {
+    // Effacer tous les états actifs précédents
+    this.clearAllActiveStates();
+    
+    // Construire le nouveau chemin actif basé sur l'historique
+    this.currentActivePath = [...this.navigationHistory];
+    
+    // Appliquer les états actifs pour chaque élément du chemin
+    this.currentActivePath.forEach((panelName, index) => {
+      this.setElementActiveState(panelName, true);
+      
+      // Marquer aussi le bouton qui mène à ce panel comme actif
+      const button = this.findButtonByPanelName(panelName);
+      if (button) {
+        this.setButtonActiveState(button, true);
+      }
+    });
+    
+    // Mettre à jour l'état du panel actuellement visible (le dernier dans l'historique)
+    if (this.navigationHistory.length > 0) {
+      const currentPanel = this.navigationHistory[this.navigationHistory.length - 1];
+      this.setCurrentPanelState(currentPanel);
+    }
+    
+    // Mettre à jour les états de fil d'Ariane
+    this.updateBreadcrumbStates();
+  }
+
+  /**
+   * Définit l'état actif d'un élément de navigation
+   * @param {string} panelName - Le data-name du panel
+   * @param {boolean} isActive - Si l'élément doit être actif
+   */
+  setElementActiveState(panelName, isActive) {
+    const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+    
+    if (!panel) return;
+    
+    if (isActive) {
+      panel.classList.add('is-active');
+      this.activeElements.add(panelName);
+    } else {
+      panel.classList.remove('is-active');
+      this.activeElements.delete(panelName);
+    }
+  }
+
+  /**
+   * Définit l'état actif d'un bouton de navigation
+   * @param {HTMLElement} button - Le bouton à modifier
+   * @param {boolean} isActive - Si le bouton doit être actif
+   */
+  setButtonActiveState(button, isActive) {
+    if (!button) return;
+    
+    if (isActive) {
+      button.classList.add('is-active');
+    } else {
+      button.classList.remove('is-active');
+    }
+  }
+
+  /**
+   * Met à jour l'état du panel actuellement visible
+   * @param {string} panelName - Le data-name du panel actuel
+   */
+  setCurrentPanelState(panelName) {
+    // Supprimer la classe 'is-current' de tous les panels
+    document.querySelectorAll('.menu_panel_item.is-current').forEach(panel => {
+      panel.classList.remove('is-current');
+    });
+    
+    // Ajouter la classe 'is-current' au panel actuel
+    const currentPanel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+    if (currentPanel) {
+      currentPanel.classList.add('is-current');
+    }
+  }
+
+  /**
+   * Efface tous les états actifs
+   */
+  clearAllActiveStates() {
+    // Effacer les classes des panels
+    document.querySelectorAll('.menu_panel_item.is-active').forEach(panel => {
+      panel.classList.remove('is-active');
+    });
+    
+    // Effacer les classes des boutons
+    this.cmsButtons.forEach(button => {
+      button.classList.remove('is-active', 'is-breadcrumb');
+    });
+    
+    // Effacer la classe current
+    document.querySelectorAll('.menu_panel_item.is-current').forEach(panel => {
+      panel.classList.remove('is-current');
+    });
+    
+    // Vider les ensembles de tracking
+    this.activeElements.clear();
+    this.currentActivePath = [];
+  }
+
+  /**
+   * Vérifie si un élément est dans le chemin actif
+   * @param {string} panelName - Le data-name du panel
+   * @returns {boolean} - True si l'élément est actif
+   */
+  isElementActive(panelName) {
+    return this.activeElements.has(panelName);
+  }
+
+  /**
+   * Vérifie si un élément est le panel actuellement visible
+   * @param {string} panelName - Le data-name du panel
+   * @returns {boolean} - True si c'est le panel actuel
+   */
+  isCurrentPanel(panelName) {
+    return this.navigationHistory.length > 0 && 
+           this.navigationHistory[this.navigationHistory.length - 1] === panelName;
+  }
+
+  /**
+   * Obtient le chemin d'ancêtres actifs d'un panel donné
+   * @param {string} panelName - Le data-name du panel
+   * @returns {string[]} - Array des ancêtres actifs
+   */
+  getActiveAncestors(panelName) {
+    const panelIndex = this.currentActivePath.indexOf(panelName);
+    if (panelIndex === -1) return [];
+    
+    return this.currentActivePath.slice(0, panelIndex);
+  }
+
+  /**
+   * Met à jour les états actifs lors de l'ouverture d'un panel
+   * @param {string} panelName - Le data-name du panel ouvert
+   */
+  updateActiveStatesOnOpen(panelName) {
+    // Ajouter le nouveau panel au chemin actif s'il n'y est pas déjà
+    if (!this.currentActivePath.includes(panelName)) {
+      this.currentActivePath.push(panelName);
+    }
+    
+    // Mettre à jour tous les états
+    this.updateActiveStates();
+  }
+
+  /**
+   * Met à jour les états actifs lors de la fermeture d'un panel
+   * @param {string} panelName - Le data-name du panel fermé
+   */
+  updateActiveStatesOnClose(panelName) {
+    // Supprimer le panel et ses descendants du chemin actif
+    const panelIndex = this.currentActivePath.indexOf(panelName);
+    if (panelIndex !== -1) {
+      this.currentActivePath = this.currentActivePath.slice(0, panelIndex);
+    }
+    
+    // Mettre à jour tous les états
+    this.updateActiveStates();
+  }
+
+  // ==========================================
+  // MÉTHODES UTILITAIRES POUR LES STATUTS ACTIFS
+  // ==========================================
+
+  /**
+   * Retourne des informations sur l'état de navigation actuel
+   * Utile pour le debugging ou l'affichage d'informations
+   * @returns {Object} - Informations sur l'état actuel
+   */
+  getNavigationState() {
+    return {
+      navigationHistory: [...this.navigationHistory],
+      currentActivePath: [...this.currentActivePath],
+      activeElements: Array.from(this.activeElements),
+      currentPanel: this.navigationHistory.length > 0 ? 
+        this.navigationHistory[this.navigationHistory.length - 1] : null,
+      isMenuOpen: this.menu?.classList.contains("is-active") || false
+    };
+  }
+
+  /**
+   * Marque un élément comme étant dans le fil d'Ariane (breadcrumb)
+   * @param {string} panelName - Le data-name du panel
+   * @param {boolean} isInBreadcrumb - Si l'élément fait partie du fil d'Ariane
+   */
+  setBreadcrumbState(panelName, isInBreadcrumb) {
+    const button = this.findButtonByPanelName(panelName);
+    if (button) {
+      if (isInBreadcrumb) {
+        button.classList.add('is-breadcrumb');
+      } else {
+        button.classList.remove('is-breadcrumb');
+      }
+    }
+  }
+
+  /**
+   * Met à jour les états de fil d'Ariane pour tous les éléments
+   */
+  updateBreadcrumbStates() {
+    // Effacer tous les états de breadcrumb existants
+    this.cmsButtons.forEach(button => {
+      button.classList.remove('is-breadcrumb');
+    });
+
+    // Marquer tous les éléments du chemin actuel sauf le dernier comme breadcrumb
+    for (let i = 0; i < this.currentActivePath.length - 1; i++) {
+      this.setBreadcrumbState(this.currentActivePath[i], true);
+    }
+  }
+
+  /**
+   * Attribue aléatoirement la classe "is-reverse" à un nombre aléatoire de cartes
+   */
+  async randomizeReviewCards() {
+    // Attendre que les cartes de review soient chargées
+    await this.waitForReviewCards();
+    
+    const reviewCards = document.querySelectorAll('.review-card_wrap');
+    
+    if (reviewCards.length === 0) {
+      console.warn('Aucune carte de review trouvée');
+      return;
+    }
+
+    console.log(`Randomisation de ${reviewCards.length} cartes de review`);
+
+    // Supprimer d'abord toutes les classes "is-reverse" existantes
+    reviewCards.forEach(card => {
+      card.classList.remove('is-reverse');
+    });
+
+    // Calculer un nombre aléatoire inférieur à la moitié du total
+    const maxCards = Math.floor(reviewCards.length / 2);
+    const randomCount = Math.floor(Math.random() * maxCards) + 1; // Au moins 1 carte
+
+    console.log(`Attribution de la classe "is-reverse" à ${randomCount} cartes sur ${reviewCards.length}`);
+
+    // Créer un array avec tous les indices et le mélanger
+    const indices = Array.from({ length: reviewCards.length }, (_, i) => i);
+    
+    // Mélanger l'array (algorithme Fisher-Yates)
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    // Prendre les premiers éléments mélangés et leur ajouter la classe
+    for (let i = 0; i < randomCount; i++) {
+      reviewCards[indices[i]].classList.add('is-reverse');
+    }
+  }
+
+  /**
+   * Attend que les cartes de review soient chargées dans le DOM
+   * @returns {Promise<void>}
+   */
+  async waitForReviewCards() {
+    const maxAttempts = 15;
+    const delayBetweenAttempts = 300;
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      // Attendre que le DOM se stabilise
+      await new Promise(resolve => setTimeout(resolve, delayBetweenAttempts));
+      
+      // Chercher les cartes de review
+      const reviewCards = document.querySelectorAll('.review-card_wrap');
+      
+      if (reviewCards.length > 0) {
+        console.log(`Cartes de review trouvées après ${attempts} tentatives`);
+        return;
+      }
+    }
+    
+    console.warn('Impossible de charger les cartes de review dans le délai imparti');
   }
 }

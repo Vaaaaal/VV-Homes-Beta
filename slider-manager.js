@@ -33,6 +33,7 @@ export class SliderManager {
    */
   init() {
     this.setupSliderOrder();     // Organise l'ordre des slides
+    this.handleDynamicTagInsertion(); // Gère l'insertion des tags dynamiques CMS
     this.createScrollAnimations(); // Crée les animations de scroll
     this.setupIndicatorBall();   // Configure l'indicateur de progression
   }
@@ -243,5 +244,48 @@ export class SliderManager {
         },
       }
     );
+  }
+
+  /**
+   * Gère l'insertion automatique des éléments CMS avec data-insert-to-item
+   * vers les listes correspondantes avec data-insert-to-list
+   */
+  handleDynamicTagInsertion() {
+    // Récupère tous les éléments à insérer
+    const itemsToInsert = document.querySelectorAll('[data-insert-to-item]');
+    
+    if (itemsToInsert.length === 0) {
+      console.log('Aucun élément avec data-insert-to-item trouvé');
+      return;
+    }
+
+    console.log(`🏷️ Gestion de ${itemsToInsert.length} éléments dynamiques...`);
+
+    itemsToInsert.forEach(item => {
+      const targetListId = item.getAttribute('data-insert-to-item');
+      
+      if (!targetListId) {
+        console.warn('Élément sans valeur data-insert-to-item:', item);
+        return;
+      }
+
+      // Trouve la liste de destination correspondante
+      const targetList = document.querySelector(`[data-insert-to-list="${targetListId}"]`);
+      
+      if (!targetList) {
+        console.warn(`Liste avec data-insert-to-list="${targetListId}" non trouvée pour l'élément:`, item);
+        return;
+      }
+
+      try {
+        // Déplace l'élément vers la liste de destination
+        targetList.appendChild(item);
+        console.log(`✅ Élément déplacé vers la liste "${targetListId}"`);
+      } catch (error) {
+        console.error(`❌ Erreur lors du déplacement vers "${targetListId}":`, error);
+      }
+    });
+
+    console.log('🎯 Insertion des éléments dynamiques terminée');
   }
 }

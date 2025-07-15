@@ -31,5 +31,9 @@ export const CONFIG = {
     MENU_FIRST_PANEL_ITEM: ".menu_panel.is-col-1 .menu_panel_item",     // Items du premier panneau
     MENU_PANEL_ITEMS: ".menu_panel .menu_panel_item",                   // Items de tous les panneaux
     MENU_FOLDERS: ".menu_panel_collection_item.is-btn",                 // Items de type dossier dans le menu
+    // Sélecteurs pour les modales
+    MODAL_TRIGGERS: "[data-modal-trigger]",                             // Éléments déclencheurs de modales
+    MODAL_ITEMS: "[data-modal-item]",                                   // Éléments modales
+    MODAL_CLOSE: "[data-modal-close]",                                  // Boutons de fermeture de modales
   }
 };
