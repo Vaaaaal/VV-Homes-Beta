@@ -43,27 +43,20 @@ export class MenuManager {
    * Attend que Finsweet List Nest ait terminé avant d'initialiser
    */
   async init() {
-    console.log('[MenuManager] Démarrage de l\'initialisation...');
     
     if (!this.menu || !this.menuButton) {
-      console.error('[MenuManager] Éléments de menu manquants:', { menu: !!this.menu, menuButton: !!this.menuButton });
       return;
     }
     
-    console.log('[MenuManager] Attente de Finsweet List Nest...');
     // Attend que Finsweet List Nest soit chargé et ait terminé son travail
     await this.waitForFinsweetListNest();
     
-    console.log('[MenuManager] Initialisation des panels...');
     this.initPanels();
     
-    console.log('[MenuManager] Initialisation des événements...');
     this.initEventListeners();
     
-    console.log('[MenuManager] Initialisation des liens slider...');
     this.initSliderMenuLinks();
     
-    console.log('[MenuManager] Initialisation terminée avec succès !');
   }
 
   /**
@@ -585,7 +578,6 @@ export class MenuManager {
    * Génère les panels dynamiquement basés sur la hiérarchie des dossiers parents
    */
   initPanels() {
-    console.log('[MenuManager] Début de l\'initialisation des panels...');
     
     // Étape 1 : Crée les panels manquants basés sur le template
     this.createMissingPanels();
@@ -595,11 +587,8 @@ export class MenuManager {
 
     // Vérification : si aucun panel n'a été créé, on peut essayer un fallback
     const createdPanels = document.querySelectorAll('.menu_panel_item[data-parent]');
-    console.log(`[MenuManager] ${createdPanels.length} panels créés au total`);
     
     if (createdPanels.length === 0) {
-      console.warn('[MenuManager] Aucun panel créé ! Finsweet List Nest pourrait ne pas être configuré sur cette page.');
-      console.log('[MenuManager] Le menu fonctionnera uniquement avec le premier niveau.');
     }
 
     // Place tous les éléments de menu hors écran initialement
@@ -608,7 +597,6 @@ export class MenuManager {
       pointerEvents: "none",    // Désactive les interactions
     });
     
-    console.log('[MenuManager] Initialisation des panels terminée');
   }
 
   /**
@@ -702,7 +690,6 @@ export class MenuManager {
   calculateFolderDepth(folderName) {
     // Cette méthode est conservée pour les cas de fallback
     // mais ne devrait plus être utilisée avec la nouvelle logique
-    console.warn(`[MenuManager] Utilisation de l'ancienne méthode calculateFolderDepth pour ${folderName}`);
     
     let depth = 1;
     let currentFolder = document.querySelector(`.menu_panel_collection_item[data-name="${folderName}"]`);
@@ -746,7 +733,6 @@ export class MenuManager {
    * Conservée temporairement pour éviter les erreurs
    */
   buildPanelArray(panel) {
-    console.warn('[MenuManager] buildPanelArray() est obsolète avec la nouvelle logique Parents → Enfants');
     return [];
   }
 
@@ -755,7 +741,6 @@ export class MenuManager {
    * Conservée temporairement pour éviter les erreurs
    */
   processItems(wrapper, selector, panelArray, type) {
-    console.warn('[MenuManager] processItems() est obsolète avec la nouvelle logique Parents → Enfants');
     return;
   }
 
@@ -764,7 +749,6 @@ export class MenuManager {
    * Conservée temporairement pour éviter les erreurs
    */
   createPanelItems(panel, panelArray) {
-    console.warn('[MenuManager] createPanelItems() est obsolète avec la nouvelle logique Parents → Enfants');
     return;
   }
 
@@ -1132,19 +1116,14 @@ export class MenuManager {
     // Récupère tous les dossiers racines du premier panel
     const rootFolders = document.querySelectorAll('.menu_panel.is-col-1 .menu_panel_collection_item.is-folder');
     
-    console.log(`[MenuManager] Construction des panels depuis ${rootFolders.length} dossiers racines`);
     
     if (rootFolders.length === 0) {
-      console.warn('[MenuManager] Aucun dossier racine trouvé ! Vérification de la structure...');
       
       // Debug : affiche la structure réelle du premier panel
       const firstPanel = document.querySelector('.menu_panel.is-col-1');
       if (firstPanel) {
-        console.log('[MenuManager] Structure du premier panel:', firstPanel);
         const allItems = firstPanel.querySelectorAll('.menu_panel_collection_item');
-        console.log('[MenuManager] Items trouvés dans le premier panel:', allItems.length);
         allItems.forEach((item, index) => {
-          console.log(`[MenuManager] Item ${index}:`, {
             element: item,
             classes: item.className,
             dataName: item.dataset.name,
@@ -1156,7 +1135,6 @@ export class MenuManager {
     }
     
     rootFolders.forEach((rootFolder, index) => {
-      console.log(`[MenuManager] Traitement du dossier racine ${index + 1}: "${rootFolder.dataset.name}"`);
       // Pour chaque dossier racine, construit ses panels enfants
       this.buildPanelForFolder(rootFolder, 2); // Commence au panel 2
     });
@@ -1181,7 +1159,6 @@ export class MenuManager {
       const panelElement = this.createPanelElement(childrenData);
       targetPanel.appendChild(panelElement);
       
-      console.log(`[MenuManager] Panel ${targetPanelNumber} créé pour "${parentFolder.dataset.name}" avec ${childrenData.items.folders.length} dossiers et ${childrenData.items.articles.length} articles`);
       
       // Récursion pour les sous-dossiers
       childrenData.items.folders.forEach(childFolder => {
@@ -1196,8 +1173,6 @@ export class MenuManager {
    * @return {Object} - Objet contenant les enfants organisés
    */
   getChildrenFromParent(parentFolder) {
-    console.log(`[MenuManager] Récupération des enfants pour "${parentFolder.dataset.name}"`);
-    console.log('[MenuManager] Structure du dossier parent:', parentFolder);
     
     // Récupère les enfants dossiers via Finsweet List Nest
     const enfantsDossiers = parentFolder.querySelectorAll('.enfants-dossiers .w-dyn-items .w-dyn-item');
@@ -1205,22 +1180,18 @@ export class MenuManager {
     // Récupère les enfants articles via Finsweet List Nest
     const enfantsArticles = parentFolder.querySelectorAll('.enfants-articles .w-dyn-items .w-dyn-item');
     
-    console.log(`[MenuManager] Trouvé ${enfantsDossiers.length} dossiers enfants et ${enfantsArticles.length} articles enfants`);
     
     // Debug : vérifie si les containers existent mais sont vides
     const enfantsDossiersContainer = parentFolder.querySelector('.enfants-dossiers');
     const enfantsArticlesContainer = parentFolder.querySelector('.enfants-articles');
     
-    console.log('[MenuManager] Containers trouvés:', {
       dossiersContainer: !!enfantsDossiersContainer,
       articlesContainer: !!enfantsArticlesContainer
     });
     
     if (enfantsDossiersContainer) {
-      console.log('[MenuManager] Contenu du container dossiers:', enfantsDossiersContainer);
     }
     if (enfantsArticlesContainer) {
-      console.log('[MenuManager] Contenu du container articles:', enfantsArticlesContainer);
     }
     
     // Clone les éléments pour éviter les conflits DOM
@@ -1253,14 +1224,12 @@ export class MenuManager {
    */
   async waitForFinsweetListNest() {
     return new Promise((resolve) => {
-      console.log('[MenuManager] Attente de Finsweet List Nest via l\'API officielle...');
       
       // Méthode officielle recommandée par Finsweet
       window.FinsweetAttributes = window.FinsweetAttributes || [];
       window.FinsweetAttributes.push([
         'list',
         (listInstances) => {
-          console.log('[MenuManager] Finsweet List Nest initialisé avec', listInstances.length, 'instances');
           
           // Vérifie s'il y a des instances de nesting
           const nestingPromises = [];
@@ -1275,16 +1244,12 @@ export class MenuManager {
           });
           
           if (nestingPromises.length > 0) {
-            console.log('[MenuManager] Attente de', nestingPromises.length, 'processus de nesting...');
             Promise.all(nestingPromises).then(() => {
-              console.log('[MenuManager] Tous les processus de nesting terminés, initialisation du menu...');
               resolve();
             }).catch(error => {
-              console.warn('[MenuManager] Erreur lors du nesting:', error, '- Initialisation forcée');
               resolve();
             });
           } else {
-            console.log('[MenuManager] Aucun processus de nesting détecté, initialisation du menu...');
             resolve();
           }
         },
@@ -1292,7 +1257,6 @@ export class MenuManager {
       
       // Timeout de sécurité après 10 secondes
       setTimeout(() => {
-        console.warn('[MenuManager] Timeout: Finsweet List Nest non initialisé, initialisation forcée');
         resolve();
       }, 10000);
     });

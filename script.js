@@ -15,5 +15,4 @@ document.addEventListener("DOMContentLoaded", () => {
   app.init();
   
   // L'application est maintenant prête et fonctionnelle !
-  console.log("🚀 VV Place Application initialisée avec succès !");
 });

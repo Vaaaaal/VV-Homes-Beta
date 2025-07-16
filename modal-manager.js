@@ -38,7 +38,6 @@ export class ModalManager {
     this.setupInitialState();
     this.isInitialized = true;
     
-    console.log('✅ Modal Manager initialisé avec', this.modalTriggers.length, 'triggers,', this.modalItems.length, 'modales et', this.modalCloseButtons.length, 'boutons de fermeture');
   }
 
   /**
@@ -131,7 +130,6 @@ export class ModalManager {
     const modalToOpen = this.findModalById(modalId);
     
     if (!modalToOpen) {
-      console.warn(`⚠️ Modale avec l'ID "${modalId}" non trouvée`);
       return;
     }
 
@@ -155,7 +153,6 @@ export class ModalManager {
         ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
       }, "-=0.05"); // Légèrement en même temps que l'opacité
 
-    console.log(`📂 Modale "${modalId}" ouverte`);
   }
 
   /**
@@ -184,7 +181,6 @@ export class ModalManager {
       }
     }, "-=0.05"); // Légèrement en même temps que l'opacité
 
-    console.log(`📁 Modale fermée`);
     this.currentModal = null;
   }
 
@@ -235,6 +231,5 @@ export class ModalManager {
     });
 
     this.isInitialized = false;
-    console.log('🗑️ Modal Manager détruit');
   }
 }

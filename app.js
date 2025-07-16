@@ -5,6 +5,7 @@ import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SliderManager } from './slider-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
+import { RichTextManager } from './rich-text-manager.js';
 
 /**
  * Classe principale qui orchestre toute l'application VV Place
@@ -13,6 +14,7 @@ import { ModalManager } from './modal-manager.js';
  * - Slider horizontal
  * - Menu de navigation
  * - Modales
+ * - Texte riche
  * - Interactions souris
  */
 export class VVPlaceApp {
@@ -22,6 +24,7 @@ export class VVPlaceApp {
     this.sliderManager = null;           // Gestion du slider principal
     this.menuManager = null;             // Gestion du menu
     this.modalManager = null;            // Gestion des modales
+    this.richTextManager = null;         // Gestion du texte riche
   }
 
   /**
@@ -30,15 +33,12 @@ export class VVPlaceApp {
    * Vérifie la présence des éléments requis avant l'initialisation
    */
   init() {
-    console.log('🚀 Initialisation de VV Place App...');
     
     // 1. Initialise le scroll fluide en premier (base pour tout le reste)
     // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
     try {
       this.smoothScrollManager = new SmoothScrollManager();
-      console.log('✅ Smooth Scroll Manager initialisé');
     } catch (error) {
-      console.error('❌ Erreur lors de l\'initialisation du Smooth Scroll Manager:', error);
       this.smoothScrollManager = null;
     }
     
@@ -47,13 +47,10 @@ export class VVPlaceApp {
       try {
         this.sliderManager = new SliderManager();
         this.sliderManager.init();
-        console.log('✅ Slider Manager initialisé');
       } catch (error) {
-        console.error('❌ Erreur lors de l\'initialisation du Slider Manager:', error);
         this.sliderManager = null;
       }
     } else {
-      console.warn('⚠️ Slider Manager non initialisé : éléments requis manquants');
     }
     
     // 3. Initialise le gestionnaire de menu si les éléments requis existent
@@ -61,13 +58,10 @@ export class VVPlaceApp {
       try {
         this.menuManager = new MenuManager(this.smoothScrollManager);
         this.menuManager.init();
-        console.log('✅ Menu Manager initialisé');
       } catch (error) {
-        console.error('❌ Erreur lors de l\'initialisation du Menu Manager:', error);
         this.menuManager = null;
       }
     } else {
-      console.warn('⚠️ Menu Manager non initialisé : éléments requis manquants');
     }
     
     // 4. Initialise le gestionnaire de modales si les éléments requis existent
@@ -75,16 +69,23 @@ export class VVPlaceApp {
       try {
         this.modalManager = new ModalManager();
         this.modalManager.init();
-        console.log('✅ Modal Manager initialisé');
       } catch (error) {
-        console.error('❌ Erreur lors de l\'initialisation du Modal Manager:', error);
         this.modalManager = null;
       }
     } else {
-      console.warn('⚠️ Modal Manager non initialisé : éléments requis manquants');
     }
     
-    console.log('🎉 Initialisation de VV Place App terminée');
+    // 5. Initialise le gestionnaire de texte riche si les éléments requis existent
+    if (this.checkRichTextElements()) {
+      try {
+        this.richTextManager = new RichTextManager();
+        this.richTextManager.init();
+      } catch (error) {
+        this.richTextManager = null;
+      }
+    } else {
+    }
+    
   }
 
   /**
@@ -96,16 +97,13 @@ export class VVPlaceApp {
     const sliderList = document.querySelector('.slider-panel_list');
     
     if (sliderItems.length === 0) {
-      console.warn('⚠️ Aucun élément slider trouvé (.slider-panel_item)');
       return false;
     }
     
     if (!sliderList) {
-      console.warn('⚠️ Container slider non trouvé (.slider-panel_list)');
       return false;
     }
     
-    console.log(`✅ Éléments slider détectés : ${sliderItems.length} slides`);
     return true;
   }
 
@@ -118,16 +116,13 @@ export class VVPlaceApp {
     const menuButton = document.querySelector('#menu-btn');
     
     if (!menuWrap) {
-      console.warn('⚠️ Container menu non trouvé (.menu_wrap)');
       return false;
     }
     
     if (!menuButton) {
-      console.warn('⚠️ Bouton menu non trouvé (#menu-btn)');
       return false;
     }
     
-    console.log('✅ Éléments menu détectés');
     return true;
   }
 
@@ -141,16 +136,27 @@ export class VVPlaceApp {
     const modalCloseButtons = document.querySelectorAll('[data-modal-close]');
     
     if (modalTriggers.length === 0) {
-      console.warn('⚠️ Aucun trigger de modale trouvé ([data-modal-trigger])');
       return false;
     }
     
     if (modalItems.length === 0) {
-      console.warn('⚠️ Aucune modale trouvée ([data-modal-item])');
       return false;
     }
     
-    console.log(`✅ Éléments modales détectés : ${modalTriggers.length} triggers, ${modalItems.length} modales, ${modalCloseButtons.length} boutons de fermeture`);
+    return true;
+  }
+
+  /**
+   * Vérifie la présence des éléments DOM requis pour le texte riche
+   * @returns {boolean} true si des éléments text-rich-text sont présents
+   */
+  checkRichTextElements() {
+    const richTextElements = document.querySelectorAll('.text-rich-text');
+    
+    if (richTextElements.length === 0) {
+      return false;
+    }
+    
     return true;
   }
 }

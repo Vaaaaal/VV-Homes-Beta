@@ -2,6 +2,7 @@
 // GESTIONNAIRE DU MENU DE NAVIGATION
 // ==========================================
 import { CONFIG } from './config.js';
+import { RichTextManager } from './rich-text-manager.js';
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -10,6 +11,9 @@ import { CONFIG } from './config.js';
 export class MenuManager {
   constructor(smoothScrollManager = null) {
     this.smoothScrollManager = smoothScrollManager;
+    
+    // Gestionnaire de texte riche
+    this.richTextManager = new RichTextManager();
     
     // Éléments principaux du menu
     this.menu = document.querySelector(CONFIG.SELECTORS.MENU_WRAP);
@@ -40,7 +44,6 @@ export class MenuManager {
    */
   async init() {
     if (!this.menu || !this.menuButton) {
-      console.warn('Menu ou bouton de menu introuvable');
       return;
     }
     
@@ -58,8 +61,10 @@ export class MenuManager {
       // Randomiser les cartes de review
       await this.randomizeReviewCards();
       
+      // Initialiser le Rich Text Manager après que tout soit chargé
+      await this.initRichTextManager();
+      
     } catch (error) {
-      console.error('Erreur lors de l\'initialisation du menu:', error);
     }
   }
 
@@ -204,7 +209,6 @@ export class MenuManager {
     const ancestorPath = this.buildAncestorPath(targetPanelName);
     
     if (ancestorPath.length === 0) {
-      console.warn(`Panel "${targetPanelName}" introuvable`);
       return;
     }
 
@@ -937,11 +941,9 @@ export class MenuManager {
     const reviewCards = document.querySelectorAll('.review-card_wrap');
     
     if (reviewCards.length === 0) {
-      console.warn('Aucune carte de review trouvée');
       return;
     }
 
-    console.log(`Randomisation de ${reviewCards.length} cartes de review`);
 
     // Supprimer d'abord toutes les classes "is-reverse" existantes
     reviewCards.forEach(card => {
@@ -952,7 +954,6 @@ export class MenuManager {
     const maxCards = Math.floor(reviewCards.length / 2);
     const randomCount = Math.floor(Math.random() * maxCards) + 1; // Au moins 1 carte
 
-    console.log(`Attribution de la classe "is-reverse" à ${randomCount} cartes sur ${reviewCards.length}`);
 
     // Créer un array avec tous les indices et le mélanger
     const indices = Array.from({ length: reviewCards.length }, (_, i) => i);
@@ -988,11 +989,29 @@ export class MenuManager {
       const reviewCards = document.querySelectorAll('.review-card_wrap');
       
       if (reviewCards.length > 0) {
-        console.log(`Cartes de review trouvées après ${attempts} tentatives`);
         return;
       }
     }
     
-    console.warn('Impossible de charger les cartes de review dans le délai imparti');
+  }
+
+  /**
+   * Initialise le Rich Text Manager après que tous les éléments Finsweet soient chargés
+   */
+  async initRichTextManager() {
+    try {
+      await this.richTextManager.init();
+    } catch (error) {
+    }
+  }
+
+  /**
+   * Réinitialise le Rich Text Manager (utile après ajout dynamique de contenu)
+   */
+  async reinitRichTextManager() {
+    try {
+      await this.richTextManager.reinit();
+    } catch (error) {
+    }
   }
 }

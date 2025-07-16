@@ -2,22 +2,73 @@
 // GESTIONNAIRE DE SCROLL FLUIDE
 // ==========================================
 /**
- * Gère le scroll horizontal fluide avec la librairie Lenis
+ * Gère le scroll fluide avec la librairie Lenis
+ * Supporte l'orientation horizontale/verticale selon le format d'écran
  * Synchronise le scroll avec les animations GSAP
  */
 export class SmoothScrollManager {
-  constructor() {
-    // Initialise Lenis pour un scroll horizontal fluide
-    this.lenis = new Lenis({ orientation: "horizontal" });
+  constructor(options = {}) {
+    // Configuration par défaut
+    this.config = {
+      desktopOrientation: options.desktopOrientation || "horizontal",
+      mobileOrientation: options.mobileOrientation || "vertical",
+      ...options
+    };
+    
     // Instances Lenis pour les éléments de menu
     this.menuScrollInstances = new Map();
+    // Fonction pour nettoyer l'event listener de resize
+    this.removeResizeListener = null;
+    
     this.init();
+  }
+
+  /**
+   * Initialise le scroll manager
+   */
+  init() {
+    this.createLenisInstance();
+    this.setupGSAPSync();
+    this.setupResponsiveHandler();
+  }
+
+  /**
+   * Détermine l'orientation selon le format d'écran
+   * @returns {string} "horizontal" ou "vertical"
+   */
+  getCurrentOrientation() {
+    // Utilise WindowUtils si disponible, sinon fallback sur window.innerWidth
+    const isDesktop = window.WindowUtils ? 
+      window.WindowUtils.isDesktop() : 
+      window.innerWidth >= 992; // 992px comme seuil pour desktop
+    
+    return isDesktop ? this.config.desktopOrientation : this.config.mobileOrientation;
+  }
+
+  /**
+   * Crée une nouvelle instance Lenis avec l'orientation appropriée
+   */
+  createLenisInstance() {
+    // Détruit l'instance existante si elle existe
+    if (this.lenis) {
+      this.lenis.destroy();
+    }
+
+    const orientation = this.getCurrentOrientation();
+    
+    // Crée la nouvelle instance avec l'orientation appropriée
+    this.lenis = new Lenis({ 
+      orientation: orientation,
+      ...this.config.lenisOptions // Permet d'ajouter d'autres options Lenis
+    });
+
+    console.log(`Lenis initialisé en mode ${orientation}`);
   }
 
   /**
    * Configure la synchronisation entre Lenis et GSAP
    */
-  init() {
+  setupGSAPSync() {
     // Synchronise Lenis avec ScrollTrigger de GSAP
     this.lenis.on("scroll", ScrollTrigger.update);
     
@@ -34,6 +85,60 @@ export class SmoothScrollManager {
     
     // Désactive le lissage de lag pour éviter les délais dans les animations
     gsap.ticker.lagSmoothing(0);
+  }
+
+  /**
+   * Configure la gestion responsive pour changer l'orientation
+   */
+  setupResponsiveHandler() {
+    // Utilise WindowUtils si disponible pour un meilleur debounce
+    if (window.WindowUtils) {
+      this.removeResizeListener = window.WindowUtils.onBreakpointChange((newBreakpoint) => {
+        this.handleOrientationChange();
+      });
+    } else {
+      // Fallback basique avec debounce manuel
+      let resizeTimeout;
+      const handleResize = () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          this.handleOrientationChange();
+        }, 250);
+      };
+      
+      window.addEventListener('resize', handleResize);
+      this.removeResizeListener = () => {
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }
+
+  /**
+   * Gère le changement d'orientation lors du resize
+   */
+  handleOrientationChange() {
+    const newOrientation = this.getCurrentOrientation();
+    const currentOrientation = this.lenis.options.orientation;
+    
+    if (newOrientation !== currentOrientation) {
+      console.log(`Changement d'orientation: ${currentOrientation} → ${newOrientation}`);
+      
+      // Sauvegarde l'état du scroll actuel
+      const wasStarted = !this.lenis.isStopped;
+      
+      // Recrée l'instance Lenis
+      this.createLenisInstance();
+      
+      // Restaure l'état du scroll
+      if (!wasStarted) {
+        this.lenis.stop();
+      }
+      
+      // Rafraîchit ScrollTrigger après le changement
+      if (window.ScrollTrigger) {
+        ScrollTrigger.refresh();
+      }
+    }
   }
 
   /**
@@ -100,5 +205,72 @@ export class SmoothScrollManager {
       instance.destroy();
     });
     this.menuScrollInstances.clear();
+  }
+
+  /**
+   * Détruit le gestionnaire de scroll et nettoie tous les event listeners
+   */
+  destroy() {
+    // Nettoie l'event listener de resize
+    if (this.removeResizeListener) {
+      this.removeResizeListener();
+    }
+    
+    // Détruit l'instance Lenis principale
+    if (this.lenis) {
+      this.lenis.destroy();
+    }
+    
+    // Nettoie toutes les instances de menu
+    this.cleanupMenuScrolls();
+    
+    console.log('SmoothScrollManager détruit');
+  }
+
+  /**
+   * Change l'orientation manuellement
+   * @param {string} orientation - "horizontal" ou "vertical"
+   */
+  setOrientation(orientation) {
+    if (orientation !== "horizontal" && orientation !== "vertical") {
+      console.warn('Orientation invalide. Utilisez "horizontal" ou "vertical"');
+      return;
+    }
+    
+    const currentOrientation = this.lenis.options.orientation;
+    if (orientation !== currentOrientation) {
+      // Sauvegarde l'état actuel
+      const wasStarted = !this.lenis.isStopped;
+      
+      // Met à jour la configuration
+      if (window.WindowUtils && window.WindowUtils.isDesktop()) {
+        this.config.desktopOrientation = orientation;
+      } else {
+        this.config.mobileOrientation = orientation;
+      }
+      
+      // Recrée l'instance
+      this.createLenisInstance();
+      
+      // Restaure l'état
+      if (!wasStarted) {
+        this.lenis.stop();
+      }
+      
+      // Rafraîchit ScrollTrigger
+      if (window.ScrollTrigger) {
+        ScrollTrigger.refresh();
+      }
+      
+      console.log(`Orientation changée manuellement vers: ${orientation}`);
+    }
+  }
+
+  /**
+   * Retourne l'orientation actuelle
+   * @returns {string} L'orientation actuelle ("horizontal" ou "vertical")
+   */
+  getOrientation() {
+    return this.lenis ? this.lenis.options.orientation : null;
   }
 }
