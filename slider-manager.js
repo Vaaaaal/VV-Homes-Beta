@@ -340,6 +340,9 @@ export class SliderManager {
   createVerticalAnimations(item) {
     // Animation de background pendant le scroll vertical (avec effet de snap)
     // Seul le snap est conservé, sans effet de parallaxe
+    
+    // SCROLL SNAP TEMPORAIREMENT DÉSACTIVÉ POUR LES TESTS
+    /*
     gsap.timeline({
       scrollTrigger: {
         trigger: item,
@@ -354,6 +357,7 @@ export class SliderManager {
         },
       },
     });
+    */
 
     // Pas d'animation de déplacement en mode vertical pour éviter l'effet parallaxe
     // Les slides restent dans leur position naturelle avec juste le snap

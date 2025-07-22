@@ -11,7 +11,7 @@ import { CONFIG } from './config.js';
  * - Association entre triggers et modales via data-attributes
  */
 export class ModalManager {
-  constructor() {
+  constructor(swiperManager = null) {
     // Récupère tous les éléments déclencheurs de modales
     this.modalTriggers = gsap.utils.toArray(CONFIG.SELECTORS.MODAL_TRIGGERS);
     
@@ -26,6 +26,9 @@ export class ModalManager {
     
     // Stocke l'état d'initialisation
     this.isInitialized = false;
+
+    // Référence au gestionnaire de swipers
+    this.swiperManager = swiperManager;
   }
 
   /**
@@ -71,7 +74,9 @@ export class ModalManager {
         e.stopPropagation();
         
         const modalId = trigger.dataset.modalTrigger;
-        this.openModal(modalId);
+        const modalContent = trigger.dataset.modalFolder || null;
+
+        this.openModal(modalId, modalContent);
       });
     });
 
@@ -80,7 +85,7 @@ export class ModalManager {
       closeButton.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const modalId = closeButton.dataset.modalClose;
         this.closeModal(modalId);
       });
@@ -120,7 +125,7 @@ export class ModalManager {
    * Ouvre une modale avec animation
    * @param {string} modalId - L'identifiant de la modale à ouvrir
    */
-  openModal(modalId) {
+  openModal(modalId, modalContent = null) {
     // Ferme la modale actuelle s'il y en a une
     if (this.currentModal) {
       this.closeCurrentModal();
@@ -131,6 +136,69 @@ export class ModalManager {
     
     if (!modalToOpen) {
       return;
+    }
+
+    if(modalContent) {
+      // Si un contenu spécifique est fourni, on cherche le contenu des previews qu'il faut lui créer grâce à data-modal-folder et au dossier
+      const folder = document.querySelector(`.menu_panel .menu_panel_item[data-name="${modalContent}"]`);
+      
+      if (folder) {
+        const title = folder.querySelector('.menu_panel_item_title:not(.w-condition-invisible)').innerHTML;
+        const content = folder.querySelector('.menu_panel_collection_list.is-preview');
+
+        // Met à jour le titre de la modale
+        modalToOpen.querySelector('.slider-panel_modal_title').innerHTML = title;
+
+        if (content) {
+          // Met à jour le contenu de la modale avec le contenu du dossier
+          const folderContentElement = gsap.utils.toArray(content.querySelectorAll('.menu-preview_wrap'));
+          // Récupération des swipers initié dans swiper-manager
+          const swiperMain = this.swiperManager?.get('modal-previews-1');
+          const swiperSecondary = this.swiperManager?.get('modal-previews-2');
+
+          if (this.swiperManager.has('modal-previews-1') && this.swiperManager.has('modal-previews-2')) {
+            // Prépare les slides
+            const slides = folderContentElement.map(item => item);
+            
+            // Met à jour les swipers avec le nouveau contenu
+            // Détruit d'abord les slides existants
+            swiperMain.removeAllSlides();
+            swiperSecondary.removeAllSlides();
+            
+            // Ajoute les nouveaux slides
+            slides.forEach(slideContent => {
+              const slideContentCopy = slideContent.cloneNode(true);
+              slideContentCopy.querySelector(".menu-preview_title").classList.add("modal-preview_title");
+              slideContentCopy.querySelector(".menu-preview_title").classList.remove("menu-preview_title");
+              slideContentCopy.querySelector(".modal-preview_title").classList.remove("text-size-xsmall");
+
+              slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
+              slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.remove("menu-preview_cover_wrap");
+              
+              slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
+              slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
+
+              swiperMain.appendSlide(`<div class="swiper-slide is-preview">${slideContentCopy.innerHTML}</div>`);
+              
+              // Traite le contenu pour retirer menu-preview_title
+              slideContentCopy.querySelector(".modal-preview_title").remove();
+              // Traite le contenu pour ajouter is-thumb
+              slideContentCopy.querySelector(".modal-preview_cover").classList.add("is-thumb");
+              // Traite le contenu pour retirer media_source pour le deuxième swiper
+              const mediaSource = slideContentCopy.querySelector(".media_source");
+              if (mediaSource) {
+                mediaSource.remove();
+              }
+
+              swiperSecondary.appendSlide(`<div class="swiper-slide is-preview">${slideContentCopy.querySelector(".modal-preview_cover_wrap").innerHTML}</div>`);
+            });
+            
+            // Met à jour les swipers
+            swiperMain.update();
+            swiperSecondary.update();
+          }
+        }
+      }
     }
 
     // Marque cette modale comme active
@@ -162,7 +230,7 @@ export class ModalManager {
     if (!this.currentModal) return;
 
     const modalToClose = this.currentModal;
-    
+
     const timeline = gsap.timeline();
     
     // Animation de fermeture
@@ -178,6 +246,27 @@ export class ModalManager {
       onComplete: () => {
         // Cache complètement la modale à la fin de l'animation
         gsap.set(modalToClose, { display: 'none' });
+
+        // Récupération des swipers initié dans swiper-manager
+        const swiperMain = this.swiperManager?.get('modal-previews-1');
+        const swiperSecondary = this.swiperManager?.get('modal-previews-2');
+
+        if (this.swiperManager.has('modal-previews-1') && this.swiperManager.has('modal-previews-2')) {
+          // Met à jour les swipers avec un contenu loader
+          // Détruit d'abord les slides existants
+          swiperMain.removeAllSlides();
+          swiperSecondary.removeAllSlides();
+          
+          // Ajoute les nouveaux slides
+          for (let i = 0; i < 5; i++) {
+            swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
+            swiperSecondary.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
+          };
+          
+          // Met à jour les swipers
+          swiperMain.update();
+          swiperSecondary.update();
+        }
       }
     }, "-=0.05"); // Légèrement en même temps que l'opacité
 

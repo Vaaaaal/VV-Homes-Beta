@@ -3,6 +3,7 @@
 // ==========================================
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SliderManager } from './slider-manager.js';
+import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
 import { RichTextManager } from './rich-text-manager.js';
@@ -22,6 +23,7 @@ export class VVPlaceApp {
     // Références aux différents gestionnaires
     this.smoothScrollManager = null;      // Gestion du scroll fluide
     this.sliderManager = null;           // Gestion du slider principal
+    this.swiperManager = null;           // Gestion des swipers
     this.menuManager = null;             // Gestion du menu
     this.modalManager = null;            // Gestion des modales
     this.richTextManager = null;         // Gestion du texte riche
@@ -42,7 +44,15 @@ export class VVPlaceApp {
       this.smoothScrollManager = null;
     }
     
-    // 2. Initialise le gestionnaire de slider si les éléments requis existent
+    // 2. Initialise le gestionnaire de swipers (indépendant, peut être utilisé par d'autres gestionnaires)
+    try {
+      this.swiperManager = new SwiperManager();
+      this.swiperManager.init();
+    } catch (error) {
+      this.swiperManager = null;
+    }
+    
+    // 3. Initialise le gestionnaire de slider si les éléments requis existent
     if (this.checkSliderElements()) {
       try {
         this.sliderManager = new SliderManager();
@@ -53,7 +63,7 @@ export class VVPlaceApp {
     } else {
     }
     
-    // 3. Initialise le gestionnaire de menu si les éléments requis existent
+    // 4. Initialise le gestionnaire de menu si les éléments requis existent
     if (this.checkMenuElements()) {
       try {
         this.menuManager = new MenuManager(this.smoothScrollManager);
@@ -64,10 +74,10 @@ export class VVPlaceApp {
     } else {
     }
     
-    // 4. Initialise le gestionnaire de modales si les éléments requis existent
+    // 5. Initialise le gestionnaire de modales si les éléments requis existent
     if (this.checkModalElements()) {
       try {
-        this.modalManager = new ModalManager();
+        this.modalManager = new ModalManager(this.swiperManager);
         this.modalManager.init();
       } catch (error) {
         this.modalManager = null;
@@ -75,7 +85,7 @@ export class VVPlaceApp {
     } else {
     }
     
-    // 5. Initialise le gestionnaire de texte riche si les éléments requis existent
+    // 6. Initialise le gestionnaire de texte riche si les éléments requis existent
     if (this.checkRichTextElements()) {
       try {
         this.richTextManager = new RichTextManager();
