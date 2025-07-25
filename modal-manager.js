@@ -34,13 +34,47 @@ export class ModalManager {
   /**
    * Initialise le gestionnaire de modales
    */
-  init() {
+  async init() {
     if (this.isInitialized) return;
     
-    this.setupEventListeners();
-    this.setupInitialState();
-    this.isInitialized = true;
-    
+    try {
+      // Attendre que Finsweet Attributes List Nest soit chargé
+      await this.waitForFinsweetAttributes();
+      
+      this.setupEventListeners();
+      this.setupInitialState();
+      this.isInitialized = true;
+      
+    } catch (error) {
+      return;
+    }
+  }
+
+  /**
+   * Attend que Finsweet Attributes List Nest soit chargé
+   * @returns {Promise<void>}
+   */
+  async waitForFinsweetAttributes() {
+    return new Promise((resolve) => {
+      // Initialise le système global Finsweet Attributes
+      window.FinsweetAttributes ||= [];
+      
+      // Attendre que List Nest soit chargé
+      window.FinsweetAttributes.push([
+        'list',
+        async (listInstances) => {
+          // Attendre que toutes les instances soient chargées
+          const loadingPromises = listInstances.map(async (instance) => {
+            if (instance.loadingPaginatedItems) {
+              await instance.loadingPaginatedItems;
+            }
+          });
+          
+          await Promise.all(loadingPromises);
+          resolve();
+        }
+      ]);
+    });
   }
 
   /**
@@ -74,7 +108,12 @@ export class ModalManager {
         e.stopPropagation();
         
         const modalId = trigger.dataset.modalTrigger;
-        const modalContent = trigger.dataset.modalFolder || null;
+        // const modalContent = trigger.dataset.modalFolder || null;
+        let modalContent;
+
+        if(trigger.dataset.modalFolder) {
+          modalContent = trigger.closest('.menu_panel_item')?.dataset.name || null;
+        }
 
         this.openModal(modalId, modalContent);
       });
@@ -138,6 +177,10 @@ export class ModalManager {
       return;
     }
 
+    if(modalContent && window.innerWidth <= 480) {
+      return; // Ne pas ouvrir la modale si le contenu est spécifique et que la largeur de l'écran est <= 480px
+    }
+
     if(modalContent) {
       // Si un contenu spécifique est fourni, on cherche le contenu des previews qu'il faut lui créer grâce à data-modal-folder et au dossier
       const folder = document.querySelector(`.menu_panel .menu_panel_item[data-name="${modalContent}"]`);
@@ -178,16 +221,22 @@ export class ModalManager {
               slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
               slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
 
-              swiperMain.appendSlide(`<div class="swiper-slide is-preview">${slideContentCopy.innerHTML}</div>`);
+              // Traite le contenu pour retirer media_source pour le deuxième swiper
+              const mediaSource = slideContentCopy.querySelector(".media_source");
+              const mediaSourceCopy = mediaSource.cloneNode(true);
+              mediaSourceCopy.classList.add("is-preview-modal");
+              slideContentCopy.prepend(mediaSourceCopy);
+              mediaSource.remove();
+
+              swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
               
               // Traite le contenu pour retirer menu-preview_title
               slideContentCopy.querySelector(".modal-preview_title").remove();
               // Traite le contenu pour ajouter is-thumb
               slideContentCopy.querySelector(".modal-preview_cover").classList.add("is-thumb");
-              // Traite le contenu pour retirer media_source pour le deuxième swiper
-              const mediaSource = slideContentCopy.querySelector(".media_source");
-              if (mediaSource) {
-                mediaSource.remove();
+              
+              if (mediaSourceCopy) {
+                mediaSourceCopy.remove();
               }
 
               swiperSecondary.appendSlide(`<div class="swiper-slide is-preview">${slideContentCopy.querySelector(".modal-preview_cover_wrap").innerHTML}</div>`);

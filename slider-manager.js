@@ -90,8 +90,6 @@ export class SliderManager {
     const newOrientation = this.getCurrentOrientation();
     
     if (newOrientation !== this.currentOrientation) {
-      console.log(`🔄 Changement d'orientation slider: ${this.currentOrientation} → ${newOrientation}`);
-      
       this.currentOrientation = newOrientation;
       
       // Tue tous les ScrollTriggers existants
@@ -160,7 +158,6 @@ export class SliderManager {
       gsap.set(this.indicatorBall, { left: '0%' });
     }
 
-    console.log('🔄 Slider réinitialisé à la position de départ');
   }
 
   /**
@@ -272,8 +269,6 @@ export class SliderManager {
       // Crée un trigger ScrollTrigger pour chaque slide
       ScrollTrigger.create(triggerConfig);
     });
-    
-    console.log(`🎯 Indicateurs configurés en mode ${this.currentOrientation}`);
   }
 
   /**
@@ -282,8 +277,6 @@ export class SliderManager {
    */
   createScrollAnimations() {
     const isHorizontal = this.currentOrientation === "horizontal";
-    
-    console.log(`🎬 Création des animations en mode ${this.currentOrientation}`);
     
     this.sliderItems.forEach((item) => {
       if (isHorizontal) {
@@ -452,17 +445,13 @@ export class SliderManager {
     const itemsToInsert = document.querySelectorAll('[data-insert-to-item]');
     
     if (itemsToInsert.length === 0) {
-      console.log('Aucun élément avec data-insert-to-item trouvé');
       return;
     }
-
-    console.log(`🏷️ Gestion de ${itemsToInsert.length} éléments dynamiques...`);
 
     itemsToInsert.forEach(item => {
       const targetListId = item.getAttribute('data-insert-to-item');
       
       if (!targetListId) {
-        console.warn('Élément sans valeur data-insert-to-item:', item);
         return;
       }
 
@@ -470,20 +459,16 @@ export class SliderManager {
       const targetList = document.querySelector(`[data-insert-to-list="${targetListId}"]`);
       
       if (!targetList) {
-        console.warn(`Liste avec data-insert-to-list="${targetListId}" non trouvée pour l'élément:`, item);
         return;
       }
 
       try {
         // Déplace l'élément vers la liste de destination
         targetList.appendChild(item);
-        console.log(`✅ Élément déplacé vers la liste "${targetListId}"`);
       } catch (error) {
-        console.error(`❌ Erreur lors du déplacement vers "${targetListId}":`, error);
+        return;
       }
     });
-
-    console.log('🎯 Insertion des éléments dynamiques terminée');
   }
 
   /**
@@ -501,7 +486,5 @@ export class SliderManager {
         trigger.kill();
       }
     });
-    
-    console.log('🧹 SliderManager nettoyé');
   }
 }

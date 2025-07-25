@@ -20,8 +20,6 @@ export class SwiperManager {
    * Initialise le gestionnaire
    */
   init() {
-    console.log('SwiperManager initialisé');
-
     // Initialisations spécifiques si nécessaire
     this.createModalPreviewsSwiper();
   }
@@ -38,7 +36,6 @@ export class SwiperManager {
     }
     
     this.swipers.set(id, swiperInstance);
-    console.log(`Swiper stocké: ${id}`);
   }
 
   /**
@@ -59,17 +56,14 @@ export class SwiperManager {
     const swiper = this.swipers.get(id);
     
     if (!swiper) {
-      console.warn(`SwiperManager: Swiper ${id} non trouvé`);
       return false;
     }
 
     try {
       swiper.destroy(true, true);
       this.swipers.delete(id);
-      console.log(`Swiper détruit: ${id}`);
       return true;
     } catch (error) {
-      console.error(`Erreur destruction swiper ${id}:`, error);
       return false;
     }
   }
@@ -110,7 +104,6 @@ export class SwiperManager {
       this.destroy(id);
     }
     this.swipers.clear();
-    console.log('Tous les swipers détruits');
   }
 
   /**
@@ -129,6 +122,10 @@ export class SwiperManager {
     return this.swipers.size;
   }
 
+  isMobile() {
+    return window.innerWidth <= 768; // Ajustez la largeur selon vos besoins
+  }
+
   // ==========================================
   // CRÉATEURS DE SWIPERS SPÉCIFIQUES
   // ==========================================
@@ -142,7 +139,6 @@ export class SwiperManager {
     const swiperElementTwo = document.querySelector('.swiper.is-previews-2');
 
     if (!swiperElementOne || !swiperElementTwo) {
-      console.warn('SwiperManager: Éléments de swiper pour les previews non trouvés');
       return null;
     }
 
@@ -151,11 +147,25 @@ export class SwiperManager {
 
     // Crée le swiper secondaire pour les previews 2
     const swiperSecondary = new Swiper(swiperElementTwo, {
-			direction: 'vertical',
-      slidesPerView: 4,
-      spaceBetween: 10,
+			direction: 'horizontal',
+      slidesPerView: 2,
+      spaceBetween: 16,
+      breakpoints: {
+        // when window width is >= 769px
+        769: {
+          slidesPerView: 3,
+          spaceBetween: 20,
+        },
+        // when window width is >= 992px
+        992: {
+          slidesPerView: 4,
+          spaceBetween: 24,
+          direction: 'vertical',
+        }
+      },
+      mousewheel: true,
       loop: true,
-      watchSlidesProgress: true,
+      // watchSlidesProgress: true,
     });
 
     // Crée le swiper principal pour les previews 1
@@ -171,6 +181,19 @@ export class SwiperManager {
       thumbs: {
         swiper: swiperSecondary,
       },
+			on: {
+				slideChange: (element) => {
+					const count = element.slides.length;
+					const realIndex = element.realIndex;
+					const indicatorBall = document.querySelector(".slider-panel_modal_indicators-scroller_line_ball");
+
+					if (indicatorBall) {
+						gsap.to(indicatorBall, {
+							left: `${realIndex / (count - 1) * 100}%`,
+						});
+					}
+				},
+			},
     });
     
     this.store(idTwo, swiperSecondary);

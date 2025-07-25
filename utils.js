@@ -30,7 +30,6 @@ function getWindowDimensions() {
 function isBelowBreakpoint(breakpoint) {
     const breakpointValue = BREAKPOINTS[breakpoint];
     if (!breakpointValue) {
-        console.warn(`Breakpoint "${breakpoint}" not found. Available breakpoints:`, Object.keys(BREAKPOINTS));
         return false;
     }
     return window.innerWidth < breakpointValue;
@@ -44,7 +43,6 @@ function isBelowBreakpoint(breakpoint) {
 function isAboveBreakpoint(breakpoint) {
     const breakpointValue = BREAKPOINTS[breakpoint];
     if (!breakpointValue) {
-        console.warn(`Breakpoint "${breakpoint}" not found. Available breakpoints:`, Object.keys(BREAKPOINTS));
         return false;
     }
     return window.innerWidth >= breakpointValue;
@@ -61,7 +59,6 @@ function isBetweenBreakpoints(minBreakpoint, maxBreakpoint) {
     const maxValue = BREAKPOINTS[maxBreakpoint];
     
     if (!minValue || !maxValue) {
-        console.warn('Invalid breakpoint names. Available breakpoints:', Object.keys(BREAKPOINTS));
         return false;
     }
     

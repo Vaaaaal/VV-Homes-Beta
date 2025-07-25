@@ -61,8 +61,6 @@ export class SmoothScrollManager {
       orientation: orientation,
       ...this.config.lenisOptions // Permet d'ajouter d'autres options Lenis
     });
-
-    console.log(`Lenis initialisé en mode ${orientation}`);
   }
 
   /**
@@ -121,8 +119,6 @@ export class SmoothScrollManager {
     const currentOrientation = this.lenis.options.orientation;
     
     if (newOrientation !== currentOrientation) {
-      console.log(`Changement d'orientation: ${currentOrientation} → ${newOrientation}`);
-      
       // Sauvegarde l'état du scroll actuel
       const wasStarted = !this.lenis.isStopped;
       
@@ -223,8 +219,6 @@ export class SmoothScrollManager {
     
     // Nettoie toutes les instances de menu
     this.cleanupMenuScrolls();
-    
-    console.log('SmoothScrollManager détruit');
   }
 
   /**
@@ -233,7 +227,6 @@ export class SmoothScrollManager {
    */
   setOrientation(orientation) {
     if (orientation !== "horizontal" && orientation !== "vertical") {
-      console.warn('Orientation invalide. Utilisez "horizontal" ou "vertical"');
       return;
     }
     
@@ -261,8 +254,6 @@ export class SmoothScrollManager {
       if (window.ScrollTrigger) {
         ScrollTrigger.refresh();
       }
-      
-      console.log(`Orientation changée manuellement vers: ${orientation}`);
     }
   }
 
