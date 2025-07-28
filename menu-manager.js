@@ -40,10 +40,10 @@ export class MenuManager {
   // ==========================================
 
   /**
-   * Initialise le système de menu
+   * Initialise le système de menu avec approche incrémentale
    */
   async init() {
-    console.log('🍔 MenuManager - Début de l\'initialisation');
+    console.log('🍔 MenuManager - Début de l\'initialisation incrémentale');
     
     if (!this.menu || !this.menuButton) {
       console.error('❌ MenuManager - Éléments essentiels manquants:', {
@@ -55,206 +55,283 @@ export class MenuManager {
     
     try {
       console.log('⏳ Attente de Finsweet Attributes...');
-      // Attendre que Finsweet Attributes List Nest soit chargé
       await this.waitForFinsweetAttributes();
       console.log('✅ Finsweet Attributes chargé');
 
-      console.log('⏳ Attente des éléments CMS...');
-      // Attendre que les boutons CMS soient chargés
-      await this.waitForCMSElements();
-      console.log('✅ Éléments CMS chargés:', this.cmsButtons.length, 'boutons trouvés');
-      
-      // Initialiser les positions et événements
-      console.log('🎨 Initialisation des positions des panels...');
-      this.initPanelPositions();
-      
-      console.log('🎯 Initialisation des événements...');
-      this.initBasicEvents();
-      
-      // Randomiser les cartes de review
-      console.log('🎲 Randomisation des cartes de review...');
-      await this.randomizeReviewCards();
-      console.log('✅ Cartes de review randomisées');
-      
-      // Initialiser le Rich Text Manager après que tout soit chargé
-      console.log('📝 Initialisation du Rich Text Manager...');
-      await this.initRichTextManager();
-      console.log('✅ Rich Text Manager initialisé');
+      console.log('🔄 Initialisation incrémentale des éléments CMS...');
+      await this.initIncrementalCMS();
       
       console.log('🎉 MenuManager - Initialisation terminée avec succès');
       
     } catch (error) {
       console.error('❌ MenuManager - Erreur lors de l\'initialisation:', error);
-      throw error; // Relancer l'erreur pour que l'app.js puisse la gérer
+      throw error;
     }
   }
 
   /**
-   * Attend que les boutons CMS soient chargés dans le DOM
-   * @returns {Promise<void>}
+   * Initialisation incrémentale des éléments CMS
    */
-  async waitForCMSElements() {
-    const maxAttempts = 20; // Augmenté encore plus
-    const delayBetweenAttempts = 400; // Augmenté pour laisser plus de temps
-    const minimumExpectedButtons = 50; // Nombre minimum attendu basé sur les logs (82 au total)
-    let attempts = 0;
-    let lastCount = 0;
-    let stabilityCount = 0;
+  async initIncrementalCMS() {
+    const MINIMUM_ELEMENTS = 20; // Seuil minimum pour démarrer
+    const INITIAL_WAIT = 1000;   // Attente initiale
+    const MAX_WAIT = 6000;       // Attente maximum
     
-    console.log('🔍 Recherche des éléments CMS...');
-    console.log(`🎯 Objectif : au moins ${minimumExpectedButtons} boutons CMS`);
+    console.log(`🎯 Objectif initial : au moins ${MINIMUM_ELEMENTS} boutons CMS`);
     
-    while (attempts < maxAttempts) {
-      attempts++;
-      console.log(`⏳ Tentative ${attempts}/${maxAttempts} de recherche des éléments CMS...`);
+    // Attendre un délai initial pour que les premiers éléments se chargent
+    await new Promise(resolve => setTimeout(resolve, INITIAL_WAIT));
+    
+    // Obtenir les éléments actuels
+    this.updateCMSButtons();
+    const initialCount = this.cmsButtons.length;
+    
+    console.log(`� ${initialCount} boutons CMS détectés initialement`);
+    
+    if (initialCount >= MINIMUM_ELEMENTS) {
+      // On a assez d'éléments pour commencer
+      console.log(`✅ Seuil minimum atteint (${initialCount}/${MINIMUM_ELEMENTS})`);
+      this.initializeMenuWithCurrentElements();
       
-      // Attendre que le DOM se stabilise
-      await new Promise(resolve => setTimeout(resolve, delayBetweenAttempts));
+      // Surveiller les nouveaux éléments en arrière-plan
+      this.startIncrementalWatcher();
       
-      // Chercher tous les boutons CMS
-      const allBtnItems = document.querySelectorAll('.menu_panel_collection_item.is-btn');
-      const currentCount = allBtnItems.length;
+    } else {
+      // Pas assez d'éléments, attendre un peu plus
+      console.log(`⏳ Pas assez d'éléments (${initialCount}/${MINIMUM_ELEMENTS}), attente supplémentaire...`);
       
-      console.log(`📊 ${currentCount} boutons CMS trouvés actuellement`);
-      
-      // Vérifier si le nombre a changé depuis la dernière tentative
-      if (currentCount === lastCount && currentCount > 0) {
-        stabilityCount++;
-        console.log(`⏱️ Stabilité ${stabilityCount}/3 - même nombre qu'avant`);
-      } else {
-        stabilityCount = 0; // Reset si le nombre change
+      const startTime = Date.now();
+      while (Date.now() - startTime < MAX_WAIT) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        this.updateCMSButtons();
+        const currentCount = this.cmsButtons.length;
+        
+        if (currentCount !== initialCount) {
+          console.log(`� ${currentCount} boutons CMS détectés (+${currentCount - initialCount})`);
+        }
+        
+        if (currentCount >= MINIMUM_ELEMENTS) {
+          console.log(`✅ Seuil minimum atteint (${currentCount}/${MINIMUM_ELEMENTS})`);
+          this.initializeMenuWithCurrentElements();
+          this.startIncrementalWatcher();
+          return;
+        }
       }
       
-      lastCount = currentCount;
-      
-      // Conditions de succès améliorées
-      const hasMinimumButtons = currentCount >= minimumExpectedButtons;
-      const isStable = stabilityCount >= 3; // 3 tentatives avec le même nombre
-      const hasReasonableAmount = currentCount >= 20 && isStable; // Au moins 20 et stable
-      
-      if (hasMinimumButtons || hasReasonableAmount) {
-        this.cmsButtons = Array.from(allBtnItems);
-        console.log(`✅ ${currentCount} boutons CMS trouvés et stabilisés après ${attempts} tentatives`);
-        
-        // Vérification supplémentaire des attributs requis
-        const buttonsWithDataName = this.cmsButtons.filter(btn => btn.dataset.name);
-        console.log(`🏷️ ${buttonsWithDataName.length} boutons ont un data-name`);
-        
-        return;
-      }
-      
-      // Log de debug périodique
-      if (attempts % 3 === 0) {
-        const allMenuItems = document.querySelectorAll('.menu_panel_collection_item');
-        console.log(`🔍 Debug - ${allMenuItems.length} éléments .menu_panel_collection_item total`);
-        
-        // Vérifier les conteneurs Finsweet
-        const finsweetContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
-        console.log(`🔍 Debug - ${finsweetContainers.length} conteneurs Finsweet trouvés`);
-        
-        // Vérifier si des éléments sont en cours de chargement
-        const loadingElements = document.querySelectorAll('[fs-cmsload-element="loader"]');
-        console.log(`⏳ ${loadingElements.length} loaders Finsweet actifs`);
-      }
+      // Timeout atteint, initialiser avec ce qu'on a
+      console.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
+      this.initializeMenuWithCurrentElements();
+      this.startIncrementalWatcher();
     }
-    
-    console.error(`❌ Impossible de charger suffisamment de boutons CMS après ${maxAttempts} tentatives`);
-    console.error(`📊 Dernier décompte : ${lastCount} boutons (objectif: ${minimumExpectedButtons})`);
-    throw new Error(`Impossible de charger les boutons CMS dans le délai imparti (${maxAttempts * delayBetweenAttempts}ms)`);
   }
 
   /**
-   * Attend que Finsweet Attributes List Nest soit chargé
-   * @returns {Promise<void>}
+   * Met à jour la liste des boutons CMS
+   */
+  updateCMSButtons() {
+    const newButtons = Array.from(document.querySelectorAll('.menu_panel_collection_item.is-btn'));
+    const previousCount = this.cmsButtons.length;
+    this.cmsButtons = newButtons;
+    
+    if (newButtons.length !== previousCount && previousCount > 0) {
+      console.log(`🔄 Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}`);
+    }
+    
+    return newButtons;
+  }
+
+  /**
+   * Initialise le menu avec les éléments actuellement disponibles
+   */
+  initializeMenuWithCurrentElements() {
+    console.log(`🎨 Initialisation du menu avec ${this.cmsButtons.length} boutons`);
+    
+    // Initialiser les positions et événements
+    this.initPanelPositions();
+    this.initBasicEvents();
+    
+    // Ajouter les événements pour les boutons actuels
+    this.attachCMSButtonEvents();
+    
+    // Randomiser les cartes de review
+    this.randomizeReviewCards().then(() => {
+      console.log('✅ Cartes de review randomisées');
+    });
+    
+    // Initialiser le Rich Text Manager
+    this.initRichTextManager().then(() => {
+      console.log('✅ Rich Text Manager initialisé');
+    });
+    
+    console.log('✅ Menu initialisé avec les éléments actuels');
+  }
+
+  /**
+   * Attache les événements aux boutons CMS actuels
+   */
+  attachCMSButtonEvents() {
+    this.cmsButtons.forEach((button) => {
+      if (!button.hasAttribute('data-vv-initialized')) {
+        this.attachButtonEvents(button);
+        button.setAttribute('data-vv-initialized', 'true');
+      }
+    });
+    
+    console.log(`� Événements attachés à ${this.cmsButtons.length} boutons`);
+  }
+
+  /**
+   * Attache les événements à un bouton spécifique
+   */
+  attachButtonEvents(button) {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openPanel(button);
+    });
+  }
+
+  /**
+   * Démarre la surveillance incrémentale des nouveaux éléments
+   */
+  startIncrementalWatcher() {
+    console.log('👁️ Démarrage de la surveillance incrémentale...');
+    
+    const observer = new MutationObserver((mutations) => {
+      let hasNewElements = false;
+      
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Vérifier si le nouveau nœud contient des boutons CMS
+              const newButtons = node.matches?.('.menu_panel_collection_item.is-btn') 
+                ? [node] 
+                : Array.from(node.querySelectorAll?.('.menu_panel_collection_item.is-btn') || []);
+              
+              if (newButtons.length > 0) {
+                hasNewElements = true;
+              }
+            }
+          });
+        }
+      });
+      
+      if (hasNewElements) {
+        // Debounce les mises à jour
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => {
+          this.handleNewCMSElements();
+        }, 200);
+      }
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Stocker l'observer pour pouvoir l'arrêter plus tard
+    this.incrementalObserver = observer;
+    
+    console.log('✅ Surveillance incrémentale active');
+  }
+
+  /**
+   * Traite les nouveaux éléments CMS détectés
+   */
+  handleNewCMSElements() {
+    const previousCount = this.cmsButtons.length;
+    this.updateCMSButtons();
+    const newCount = this.cmsButtons.length;
+    
+    if (newCount > previousCount) {
+      const addedCount = newCount - previousCount;
+      console.log(`🆕 ${addedCount} nouveaux boutons CMS détectés (total: ${newCount})`);
+      
+      // Attacher les événements aux nouveaux boutons uniquement
+      this.attachCMSButtonEvents();
+      
+      // Mettre à jour les positions si nécessaire
+      this.updatePanelPositions();
+      
+      // Randomiser à nouveau les cartes de review si de nouveaux éléments
+      this.randomizeReviewCards();
+    }
+  }
+
+  /**
+   * Met à jour les positions des panels après ajout d'éléments
+   */
+  updatePanelPositions() {
+    console.log('🔄 Mise à jour des positions des panels...');
+    this.initPanelPositions();
+  }
+
+  /**
+   * Attend que Finsweet Attributes soit chargé avec optimisation
    */
   async waitForFinsweetAttributes() {
-    const timeout = 15000; // Augmenté à 15 secondes
+    const maxWaitTime = 8000; // 8 secondes max
+    const checkInterval = 200; // Vérifier toutes les 200ms
+    const startTime = Date.now();
     
-    return new Promise((resolve, reject) => {
-      // Timer de sécurité
-      const timeoutId = setTimeout(() => {
-        console.warn('⚠️ Timeout - Finsweet Attributes n\'a pas répondu dans les temps, on continue quand même');
-        resolve(); // On résout quand même pour ne pas bloquer
-      }, timeout);
-      
-      // Initialise le système global Finsweet Attributes
-      window.FinsweetAttributes ||= [];
-      
-      console.log('⏳ Configuration de Finsweet Attributes...');
-      
-      // Vérifier si Finsweet est déjà chargé
-      if (window.FinsweetAttributes.length > 0) {
-        console.log('🔄 Finsweet Attributes déjà initialisé, on continue...');
-        clearTimeout(timeoutId);
-        resolve();
-        return;
-      }
-      
-      // Surveillance supplémentaire des changements DOM
-      let changeCounter = 0;
-      const domObserver = new MutationObserver((mutations) => {
-        changeCounter++;
-        const cmsElements = document.querySelectorAll('.menu_panel_collection_item.is-btn');
-        if (cmsElements.length > 10 && changeCounter > 5) {
-          console.log(`🎯 Détection de ${cmsElements.length} éléments CMS via MutationObserver`);
-          domObserver.disconnect();
-          clearTimeout(timeoutId);
-          resolve();
+    // Vérification immédiate
+    if (this.checkFinsweetLoaded()) {
+      console.log('✅ Finsweet Attributes déjà disponible');
+      return true;
+    }
+    
+    console.log('⏳ Attente de Finsweet Attributes...');
+    
+    return new Promise((resolve) => {
+      const checkLoad = () => {
+        if (this.checkFinsweetLoaded()) {
+          console.log('✅ Finsweet Attributes détecté');
+          resolve(true);
+          return;
         }
-      });
-      
-      domObserver.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-      
-      // Attendre que List Nest soit chargé
-      window.FinsweetAttributes.push([
-        'list',
-        async (listInstances) => {
-          try {
-            console.log(`📋 ${listInstances.length} instances de liste Finsweet trouvées`);
-            
-            // Attendre que toutes les instances soient chargées
-            const loadingPromises = listInstances.map(async (instance, index) => {
-              console.log(`⏳ Chargement de l'instance ${index + 1}...`);
-              if (instance.loadingPaginatedItems) {
-                await instance.loadingPaginatedItems;
-              }
-              
-              // Vérification supplémentaire que l'instance a bien chargé du contenu
-              await new Promise(resolve => setTimeout(resolve, 200));
-            });
-            
-            await Promise.all(loadingPromises);
-            console.log('✅ Toutes les instances Finsweet sont chargées');
-            
-            // Attendre un peu plus pour que le DOM se stabilise
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            domObserver.disconnect();
-            clearTimeout(timeoutId);
-            resolve();
-          } catch (error) {
-            console.error('❌ Erreur lors du chargement des instances Finsweet:', error);
-            domObserver.disconnect();
-            clearTimeout(timeoutId);
-            reject(error);
-          }
+        
+        if (Date.now() - startTime > maxWaitTime) {
+          console.warn('⚠️ Timeout Finsweet Attributes - Continuation sans attendre');
+          resolve(false); // Ne pas rejeter, juste continuer
+          return;
         }
-      ]);
+        
+        setTimeout(checkLoad, checkInterval);
+      };
       
-      // Fallback : si après 3 secondes on a déjà des éléments, on peut continuer
-      setTimeout(() => {
-        const existingElements = document.querySelectorAll('.menu_panel_collection_item.is-btn');
-        if (existingElements.length > 30) {
-          console.log(`🚀 Fallback - ${existingElements.length} éléments déjà présents, on continue`);
-          domObserver.disconnect();
-          clearTimeout(timeoutId);
-          resolve();
-        }
-      }, 3000);
+      checkLoad();
     });
+  }
+
+  /**
+   * Vérifie si Finsweet est chargé de manière optimisée
+   */
+  checkFinsweetLoaded() {
+    // Vérifier si les listes CMS sont présentes
+    const cmsElements = document.querySelectorAll('.menu_panel_collection_item');
+    if (cmsElements.length < 10) {
+      return false; // Pas assez d'éléments CMS
+    }
+    
+    // Vérifier si les conteneurs Finsweet sont présents
+    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
+    if (listContainers.length === 0) {
+      // Pas de conteneurs Finsweet, mais si on a des éléments CMS, c'est bon
+      return cmsElements.length > 20;
+    }
+    
+    // Vérifier si au moins une liste a du contenu
+    let hasContent = false;
+    listContainers.forEach(container => {
+      const items = container.querySelectorAll('.menu_panel_collection_item');
+      if (items.length > 5) {
+        hasContent = true;
+      }
+    });
+    
+    return hasContent;
   }
 
   /**
@@ -299,16 +376,10 @@ export class MenuManager {
       });
     });
 
-    // Événements pour les boutons CMS
-    this.cmsButtons.forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openPanel(btn);
-      });
-    });
-
     // Événements pour les liens de menu avec data-menu-link
     this.initMenuLinkEvents();
+    
+    console.log('🎯 Événements de base initialisés');
   }
 
   // ==========================================

@@ -10,8 +10,8 @@ import { VVPlaceApp } from './app.js';
 document.addEventListener("DOMContentLoaded", async () => {
   console.log('📄 DOM chargé - Préparation de l\'application...');
   
-  // Attendre un court délai pour que Webflow et Finsweet aient le temps de s'initialiser
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Délai réduit car l'approche incrémentale est plus robuste
+  await new Promise(resolve => setTimeout(resolve, 300));
   
   // Vérifier que les dépendances essentielles sont disponibles
   if (typeof gsap === 'undefined') {
@@ -28,8 +28,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.app = app;
   
   // Lance l'initialisation complète
-  app.init();
-  
-  // L'application est maintenant prête et fonctionnelle !
-  console.log('🎪 Application VV Place lancée');
+  try {
+    app.init();
+    console.log('🎪 Application VV Place lancée avec succès');
+  } catch (error) {
+    console.error('❌ Erreur lors du lancement de l\'application:', error);
+    console.log('🔄 Application lancée en mode dégradé');
+  }
 });

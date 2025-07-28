@@ -184,6 +184,47 @@ export class DebugUtils {
   }
 
   /**
+   * Surveille spécifiquement l'initialisation incrémentale
+   */
+  static watchIncrementalInit() {
+    console.log('🔍 Surveillance de l\'initialisation incrémentale...');
+    
+    let initialCount = 0;
+    let checkCount = 0;
+    
+    const logProgress = () => {
+      checkCount++;
+      const currentCount = document.querySelectorAll('.menu_panel_collection_item.is-btn').length;
+      
+      if (checkCount === 1) {
+        initialCount = currentCount;
+        console.log(`📊 État initial : ${currentCount} éléments CMS`);
+      } else if (currentCount !== initialCount) {
+        const diff = currentCount - initialCount;
+        console.log(`📈 Progression : ${currentCount} éléments (+${diff} depuis le début)`);
+        initialCount = currentCount;
+      }
+      
+      // Vérifier si le seuil de 20 est atteint
+      if (currentCount >= 20 && checkCount <= 5) {
+        console.log('🎯 Seuil de 20 éléments atteint rapidement !');
+      }
+    };
+    
+    // Vérification immédiate puis toutes les 200ms pendant 10 secondes
+    logProgress();
+    const interval = setInterval(logProgress, 200);
+    
+    setTimeout(() => {
+      clearInterval(interval);
+      const finalCount = document.querySelectorAll('.menu_panel_collection_item.is-btn').length;
+      console.log(`📊 Résultat final : ${finalCount} éléments CMS après 10 secondes`);
+    }, 10000);
+    
+    return interval;
+  }
+
+  /**
    * Surveille les changements du DOM
    */
   static watchDOMChanges() {

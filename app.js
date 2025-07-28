@@ -42,8 +42,7 @@ export class VVPlaceApp {
     
     // Diagnostic initial
     DebugUtils.logFullDiagnostic();
-    DebugUtils.watchDOMChanges();
-    DebugUtils.watchCMSElements();
+    DebugUtils.watchIncrementalInit();
     
     // 1. Initialise le scroll fluide en premier (base pour tout le reste)
     // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
@@ -92,14 +91,12 @@ export class VVPlaceApp {
         }).catch((error) => {
           console.error('❌ Erreur lors de l\'initialisation du MenuManager:', error);
           this.menuManager = null;
-          // Réessayer une fois après un délai plus long
-          this.retryMenuInitialization();
+          this.initMenuFallback();
         });
       } catch (error) {
         console.error('❌ Erreur lors de la création du MenuManager:', error);
         this.menuManager = null;
-        // Réessayer une fois après un délai plus long
-        this.retryMenuInitialization();
+        this.initMenuFallback();
       }
     } else {
       console.log('⏭️ MenuManager ignoré - éléments requis non trouvés');
@@ -208,26 +205,6 @@ export class VVPlaceApp {
     }
     
     return true;
-  }
-  
-  /**
-   * Réessaie l'initialisation du menu après un délai
-   */
-  async retryMenuInitialization() {
-    console.log('🔄 Nouvelle tentative d\'initialisation du menu dans 2 secondes...');
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    try {
-      console.log('🔄 Deuxième tentative d\'initialisation du MenuManager...');
-      this.menuManager = new MenuManager(this.smoothScrollManager);
-      await this.menuManager.init();
-      console.log('✅ MenuManager initialisé avec succès (2ème tentative)');
-    } catch (error) {
-      console.error('❌ Échec de la 2ème tentative:', error);
-      console.log('🔄 Initialisation du menu de fallback...');
-      this.initMenuFallback();
-    }
   }
   
   /**
