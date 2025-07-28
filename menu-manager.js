@@ -984,7 +984,11 @@ export class MenuManager {
     // Appliquer les modifications à chaque carte
     reviewCards.forEach(card => {
       card.addEventListener('click', () => {
-        if(window.WindowUtils && !window.WindowUtils.isMobile()) {
+        const isDesktop = window.WindowUtils ? 
+          window.WindowUtils.isDesktop() : 
+          window.innerWidth >= 992;
+
+        if(isDesktop) {
           return; // Ne pas appliquer les modifications sur desktop
         }
 
