@@ -122,10 +122,6 @@ export class SwiperManager {
     return this.swipers.size;
   }
 
-  isMobile() {
-    return window.innerWidth <= 768; // Ajustez la largeur selon vos besoins
-  }
-
   // ==========================================
   // CRÉATEURS DE SWIPERS SPÉCIFIQUES
   // ==========================================
