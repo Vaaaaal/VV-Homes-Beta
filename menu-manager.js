@@ -3,7 +3,6 @@
 // ==========================================
 import { CONFIG } from './config.js';
 import { RichTextManager } from './rich-text-manager.js';
-import { isMobile } from './utils.js';
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -15,9 +14,6 @@ export class MenuManager {
     
     // Gestionnaire de texte riche
     this.richTextManager = new RichTextManager();
-
-    // Vérifier si l'appareil est mobile
-    this.isMobile = isMobile();
     
     // Éléments principaux du menu
     this.menu = document.querySelector(CONFIG.SELECTORS.MENU_WRAP);
@@ -988,8 +984,8 @@ export class MenuManager {
     // Appliquer les modifications à chaque carte
     reviewCards.forEach(card => {
       card.addEventListener('click', () => {
-        if(!this.isMobile) {
-          return; // Ne pas appliquer les modifications sur mobile
+        if(window.WindowUtils && !window.WindowUtils.isMobile()) {
+          return; // Ne pas appliquer les modifications sur desktop
         }
 
         // Vérifier si la carte a déjà la classe "is-reverse"
