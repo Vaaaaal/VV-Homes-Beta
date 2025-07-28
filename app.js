@@ -7,6 +7,8 @@ import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
 import { RichTextManager } from './rich-text-manager.js';
+import { DebugUtils } from './debug-utils.js';
+import { MenuFallback } from './menu-fallback.js';
 
 /**
  * Classe principale qui orchestre toute l'application VV Place
@@ -25,6 +27,7 @@ export class VVPlaceApp {
     this.sliderManager = null;           // Gestion du slider principal
     this.swiperManager = null;           // Gestion des swipers
     this.menuManager = null;             // Gestion du menu
+    this.menuFallback = null;            // Menu de fallback
     this.modalManager = null;            // Gestion des modales
     this.richTextManager = null;         // Gestion du texte riche
   }
@@ -35,67 +38,104 @@ export class VVPlaceApp {
    * Vérifie la présence des éléments requis avant l'initialisation
    */
   init() {
+    console.log('🚀 VVPlaceApp - Début de l\'initialisation');
+    
+    // Diagnostic initial
+    DebugUtils.logFullDiagnostic();
+    DebugUtils.watchDOMChanges();
+    DebugUtils.watchCMSElements();
     
     // 1. Initialise le scroll fluide en premier (base pour tout le reste)
     // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
     try {
+      console.log('📜 Initialisation du SmoothScrollManager...');
       this.smoothScrollManager = new SmoothScrollManager();
+      console.log('✅ SmoothScrollManager initialisé avec succès');
     } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation du SmoothScrollManager:', error);
       this.smoothScrollManager = null;
     }
     
     // 2. Initialise le gestionnaire de swipers (indépendant, peut être utilisé par d'autres gestionnaires)
     try {
+      console.log('🎠 Initialisation du SwiperManager...');
       this.swiperManager = new SwiperManager();
       this.swiperManager.init();
+      console.log('✅ SwiperManager initialisé avec succès');
     } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation du SwiperManager:', error);
       this.swiperManager = null;
     }
     
     // 3. Initialise le gestionnaire de slider si les éléments requis existent
     if (this.checkSliderElements()) {
       try {
+        console.log('🎚️ Initialisation du SliderManager...');
         this.sliderManager = new SliderManager();
         this.sliderManager.init();
+        console.log('✅ SliderManager initialisé avec succès');
       } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation du SliderManager:', error);
         this.sliderManager = null;
       }
     } else {
+      console.log('⏭️ SliderManager ignoré - éléments requis non trouvés');
     }
     
     // 4. Initialise le gestionnaire de menu si les éléments requis existent
     if (this.checkMenuElements()) {
       try {
+        console.log('🍔 Initialisation du MenuManager...');
         this.menuManager = new MenuManager(this.smoothScrollManager);
-        this.menuManager.init();
+        this.menuManager.init().then(() => {
+          console.log('✅ MenuManager initialisé avec succès');
+        }).catch((error) => {
+          console.error('❌ Erreur lors de l\'initialisation du MenuManager:', error);
+          this.menuManager = null;
+          // Réessayer une fois après un délai plus long
+          this.retryMenuInitialization();
+        });
       } catch (error) {
+        console.error('❌ Erreur lors de la création du MenuManager:', error);
         this.menuManager = null;
+        // Réessayer une fois après un délai plus long
+        this.retryMenuInitialization();
       }
     } else {
+      console.log('⏭️ MenuManager ignoré - éléments requis non trouvés');
     }
     
     // 5. Initialise le gestionnaire de modales si les éléments requis existent
     if (this.checkModalElements()) {
       try {
+        console.log('🪟 Initialisation du ModalManager...');
         this.modalManager = new ModalManager(this.swiperManager);
         this.modalManager.init();
+        console.log('✅ ModalManager initialisé avec succès');
       } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation du ModalManager:', error);
         this.modalManager = null;
       }
     } else {
+      console.log('⏭️ ModalManager ignoré - éléments requis non trouvés');
     }
     
     // 6. Initialise le gestionnaire de texte riche si les éléments requis existent
     if (this.checkRichTextElements()) {
       try {
+        console.log('📝 Initialisation du RichTextManager...');
         this.richTextManager = new RichTextManager();
         this.richTextManager.init();
+        console.log('✅ RichTextManager initialisé avec succès');
       } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation du RichTextManager:', error);
         this.richTextManager = null;
       }
     } else {
+      console.log('⏭️ RichTextManager ignoré - éléments requis non trouvés');
     }
     
+    console.log('🎉 VVPlaceApp - Initialisation terminée');
   }
 
   /**
@@ -168,5 +208,43 @@ export class VVPlaceApp {
     }
     
     return true;
+  }
+  
+  /**
+   * Réessaie l'initialisation du menu après un délai
+   */
+  async retryMenuInitialization() {
+    console.log('🔄 Nouvelle tentative d\'initialisation du menu dans 2 secondes...');
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    try {
+      console.log('🔄 Deuxième tentative d\'initialisation du MenuManager...');
+      this.menuManager = new MenuManager(this.smoothScrollManager);
+      await this.menuManager.init();
+      console.log('✅ MenuManager initialisé avec succès (2ème tentative)');
+    } catch (error) {
+      console.error('❌ Échec de la 2ème tentative:', error);
+      console.log('🔄 Initialisation du menu de fallback...');
+      this.initMenuFallback();
+    }
+  }
+  
+  /**
+   * Initialise le menu de fallback en cas d'échec du MenuManager principal
+   */
+  initMenuFallback() {
+    console.log('🔄 Initialisation du menu de fallback...');
+    try {
+      this.menuFallback = new MenuFallback();
+      const success = this.menuFallback.init();
+      if (success) {
+        console.log('✅ Menu de fallback initialisé avec succès');
+      } else {
+        console.error('❌ Échec de l\'initialisation du menu de fallback');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation du menu de fallback:', error);
+    }
   }
 }
