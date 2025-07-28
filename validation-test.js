@@ -8,7 +8,7 @@
  */
 
 // Test d'importation (simulation)
-console.log('🔍 Test de validation de l'approche incrémentale');
+console.log('🔍 Test de validation de l\'approche incrémentale');
 
 // Vérifier que les méthodes essentielles existent
 const requiredMethods = [

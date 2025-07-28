@@ -1,6 +1,7 @@
 // ==========================================
 // CONTRÔLEUR PRINCIPAL DE L'APPLICATION
 // ==========================================
+import { OrientationManager } from './orientation-manager.js';
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SliderManager } from './slider-manager.js';
 import { SwiperManager } from './swiper-manager.js';
@@ -22,6 +23,9 @@ import { MenuFallback } from './menu-fallback.js';
  */
 export class VVPlaceApp {
   constructor() {
+    // Gestionnaire centralisé d'orientation (initialisé en premier)
+    this.orientationManager = null;
+    
     // Références aux différents gestionnaires
     this.smoothScrollManager = null;      // Gestion du scroll fluide
     this.sliderManager = null;           // Gestion du slider principal
@@ -43,6 +47,20 @@ export class VVPlaceApp {
     // Diagnostic initial
     DebugUtils.logFullDiagnostic();
     DebugUtils.watchIncrementalInit();
+    
+    // 0. Initialise le gestionnaire d'orientation centralisé EN PREMIER
+    try {
+      console.log('🧭 Initialisation de l\'OrientationManager...');
+      this.orientationManager = new OrientationManager();
+      this.orientationManager.init();
+      
+      // Rendre disponible globalement pour les autres gestionnaires
+      window.orientationManager = this.orientationManager;
+      console.log('✅ OrientationManager initialisé avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation de l\'OrientationManager:', error);
+      this.orientationManager = null;
+    }
     
     // 1. Initialise le scroll fluide en premier (base pour tout le reste)
     // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
@@ -133,6 +151,48 @@ export class VVPlaceApp {
     }
     
     console.log('🎉 VVPlaceApp - Initialisation terminée');
+  }
+
+  /**
+   * Détruit proprement l'application et tous ses gestionnaires
+   * Utile pour éviter les fuites mémoire lors du reload de page
+   */
+  destroy() {
+    console.log('🧹 VVPlaceApp - Début de la destruction');
+    
+    // Détruire dans l'ordre inverse de l'initialisation
+    if (this.richTextManager) {
+      this.richTextManager.destroy();
+    }
+    
+    if (this.modalManager) {
+      this.modalManager.destroy();
+    }
+    
+    if (this.menuManager) {
+      // Le MenuManager n'a pas de méthode destroy pour l'instant
+      this.menuManager = null;
+    }
+    
+    if (this.sliderManager) {
+      this.sliderManager.destroy();
+    }
+    
+    if (this.swiperManager) {
+      this.swiperManager.destroyAll();
+    }
+    
+    if (this.smoothScrollManager) {
+      this.smoothScrollManager.destroy();
+    }
+    
+    // Détruire le gestionnaire d'orientation en dernier
+    if (this.orientationManager) {
+      this.orientationManager.destroy();
+      window.orientationManager = null;
+    }
+    
+    console.log('✅ VVPlaceApp - Destruction terminée');
   }
 
   /**

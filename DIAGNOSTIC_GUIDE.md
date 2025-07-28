@@ -1,10 +1,147 @@
-# Documentation de Diagnostic - VV Place
+# 🔧 GUIDE DE DIAGNOSTIC DES PROBLÈMES D'ORIENTATION
 
-## 🔧 Outils de diagnostic disponibles
+## 🎯 Problème résolu : "Plantage" lors du changement d'orientation mobile
+
+### ⚡ **Solution implémentée :**
+
+Un **gestionnaire centralisé d'orientation** (`OrientationManager`) qui coordonne tous les changements pour éviter les conflits et boucles infinies.
+
+---
+
+## 🔍 **Comment diagnostiquer les problèmes d'orientation :**
+
+### 1. **Ouvrir les DevTools sur mobile**
+```javascript
+// Dans la console, vérifier l'état du système :
+orientationTester.checkSystemStatus()
+```
+
+### 2. **Lancer le test de stress**
+```javascript
+// Lance une série de tests automatiques :
+orientationTester.runOrientationStressTest()
+```
+
+### 3. **Vérifier les logs pendant un changement d'orientation**
+- Faites tourner votre mobile
+- Observez les logs dans la console
+- Vous devriez voir :
+  ```
+  🧭 Changement d'orientation détecté: vertical → horizontal
+  � Notification SmoothScrollManager...
+  ✅ SmoothScrollManager traité en 25.42ms
+  📡 Notification SliderManager...
+  ✅ SliderManager traité en 67.89ms
+  🔄 Rafraîchissement final des ScrollTriggers...
+  � Traitement d'orientation terminé
+  ```
+
+---
+
+## � **Signaux d'alarme à surveiller :**
+
+### ❌ **Signes de problème :**
+- Messages d'erreur répétés dans la console
+- `ScrollTrigger.refresh()` appelé plusieurs fois de suite
+- Animations qui "sautent" ou se bloquent
+- Interface qui ne répond plus temporairement
+
+### ✅ **Signes de bon fonctionnement :**
+- Changements d'orientation fluides
+- Un seul cycle de logs par changement
+- Pas d'erreurs dans la console
+- Interface responsive immédiatement
+
+---
+
+## 🛠️ **Dépannage étape par étape :**
+
+### Étape 1: Vérifier que le gestionnaire centralisé est actif
+```javascript
+console.log('OrientationManager actif:', !!window.orientationManager);
+```
+
+### Étape 2: Vérifier les abonnements
+```javascript
+console.log('Gestionnaires abonnés:', window.orientationManager?.getStats());
+```
+
+### Étape 3: Forcer un rafraîchissement
+```javascript
+window.orientationManager?.forceRefresh();
+```
+
+### Étape 4: Test de changement simple
+```javascript
+orientationTester.testSingleChange();
+```
+
+---
+
+## 📊 **Métriques de performance :**
+
+### ⏱️ **Temps acceptable :**
+- SmoothScrollManager : < 50ms
+- SliderManager : < 100ms
+- Temps total : < 200ms
+
+### 🚩 **Seuils d'alerte :**
+- Un gestionnaire > 200ms
+- Temps total > 500ms
+- Plus de 3 erreurs par test
+
+---
+
+## � **Fallbacks en cas de problème :**
+
+### Si OrientationManager ne fonctionne pas :
+1. Les gestionnaires utilisent leurs propres event listeners
+2. Délai de debounce augmenté à 500ms
+3. Logs d'avertissement dans la console
+
+### Si le problème persiste :
+1. Recharger la page
+2. Vérifier la connectivité réseau
+3. Vérifier que GSAP est bien chargé
+4. Désactiver temporairement le smooth scroll
+
+---
+
+## 🧪 **Commandes de test disponibles :**
+
+```javascript
+// État général du système
+orientationTester.checkSystemStatus()
+
+// Test complet (recommandé)
+orientationTester.runOrientationStressTest()
+
+// Test simple
+orientationTester.testSingleChange()
+
+// Diagnostic complet de l'app
+debugVV.logFullDiagnostic()
+
+// Forcer un rafraîchissement
+window.orientationManager?.forceRefresh()
+```
+
+---
+
+## 📝 **Notes pour le développement futur :**
+
+1. **Ajouter de nouveaux gestionnaires :** S'abonner au OrientationManager avec une priorité appropriée
+2. **Modifier les animations :** Tester avec le OrientationTester
+3. **Optimisations :** Surveiller les métriques de performance
+4. **Debugging :** Utiliser les outils intégrés plutôt que console.log
+
+---
+
+## � **Autres outils de diagnostic disponibles :**
 
 ### En console développeur
 
-Une fois le site chargé, vous pouvez utiliser ces commandes en console :
+Une fois le site chargé, vous pouvez utiliser ces commandes :
 
 ```javascript
 // Diagnostic complet
@@ -20,94 +157,6 @@ debugVV.checkMenuElements();
 debugVV.checkFinsweetElements();
 ```
 
-## 📊 Logs d'initialisation
+---
 
-L'application produit maintenant des logs détaillés :
-
-- 🚀 Début d'initialisation
-- 📜 Smooth Scroll Manager
-- 🎠 Swiper Manager  
-- 🎚️ Slider Manager
-- 🍔 Menu Manager (avec détails)
-- 🪟 Modal Manager
-- 📝 Rich Text Manager
-
-## 🔄 Menu Fallback
-
-Si le MenuManager principal échoue, un menu de fallback s'active automatiquement avec :
-- Ouverture/fermeture de base
-- Gestion des overlays
-- Support clavier (Échap)
-- Animations CSS de base
-
-## 🎯 Points de surveillance
-
-### Éléments CMS
-- `.menu_panel_collection_item.is-btn` (boutons CMS)
-- Conteneurs Finsweet `[fs-cmsload-element="list"]`
-
-### Scripts externes
-- GSAP (animations)
-- Finsweet Attributes (CMS)
-- Webflow (plateforme)
-
-### Timeouts configurés
-- Finsweet Attributes : 10 secondes
-- Éléments CMS : 15 tentatives × 300ms = 4.5 secondes
-- Surveillance DOM : 30 secondes
-
-## 🚨 Signaux d'alarme
-
-Ces messages indiquent des problèmes :
-
-- `❌ MenuManager - Éléments essentiels manquants`
-- `⚠️ Timeout - Finsweet Attributes n'a pas répondu`
-- `❌ Impossible de charger les boutons CMS`
-- `🔄 Initialisation du menu de fallback`
-
-## 📱 Actions recommandées
-
-### Si le menu ne fonctionne pas :
-
-1. **Ouvrir la console développeur** (F12)
-2. **Rechercher les logs d'erreur** (❌ rouge)
-3. **Exécuter le diagnostic** : `debugVV.logFullDiagnostic()`
-4. **Vérifier la connectivité** : `debugVV.testCDNConnectivity()`
-
-### Solutions rapides :
-
-- **Rechargement de page** (peut résoudre les race conditions)
-- **Vider le cache** (Ctrl+F5)
-- **Tester sur un autre navigateur**
-- **Vérifier la connexion réseau**
-
-## 🔍 Debugging avancé
-
-### Surveiller les changements DOM en temps réel :
-```javascript
-// La surveillance est automatique pendant 30s au chargement
-// Pour la relancer manuellement :
-debugVV.watchDOMChanges();
-```
-
-### Vérifier l'état du MenuManager :
-```javascript
-// Si l'app est dans window.app
-app.menuManager?.getNavigationState();
-```
-
-## 📞 Informations pour le support
-
-Quand vous contactez le support, incluez :
-
-1. **URL de la page problématique**
-2. **Navigateur et version**
-3. **Messages d'erreur de la console**
-4. **Résultat de** `debugVV.logFullDiagnostic()`
-5. **Étapes pour reproduire le problème**
-
-## 🔗 URLs importantes
-
-- **Production** : https://vv-homes-beta.webflow.io
-- **Script principal** : https://cdn.jsdelivr.net/gh/Vaaaaal/VV-Homes-Beta@main/script.js
-- **Repository** : https://github.com/Vaaaaal/VV-Homes-Beta
+*Ce guide est généré automatiquement et correspond à la solution mise en place pour résoudre les problèmes de "plantage" lors du changement d'orientation mobile.*

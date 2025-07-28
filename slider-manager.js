@@ -62,18 +62,21 @@ export class SliderManager {
    * Configure l'écoute des changements d'orientation
    */
   setupOrientationListener() {
-    if (window.WindowUtils) {
-      this.removeOrientationListener = window.WindowUtils.onBreakpointChange(() => {
-        this.handleOrientationChange();
-      });
+    // S'abonner au gestionnaire centralisé d'orientation
+    if (window.orientationManager) {
+      window.orientationManager.subscribe('SliderManager', (newOrientation, context) => {
+        this.handleOrientationChange(newOrientation, context);
+      }, 2); // Priorité 2 (après SmoothScrollManager)
     } else {
-      // Fallback basique avec debounce manuel
+      // Fallback si le gestionnaire centralisé n'est pas disponible
+      console.warn('⚠️ OrientationManager non disponible, utilisation du fallback');
+      
       let resizeTimeout;
       const handleResize = () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
           this.handleOrientationChange();
-        }, 250);
+        }, 500); // Délai plus long pour éviter les conflits
       };
       
       window.addEventListener('resize', handleResize);
@@ -86,25 +89,22 @@ export class SliderManager {
   /**
    * Gère le changement d'orientation
    */
-  handleOrientationChange() {
-    const newOrientation = this.getCurrentOrientation();
+  handleOrientationChange(newOrientation = null, context = null) {
+    const targetOrientation = newOrientation || this.getCurrentOrientation();
     
-    if (newOrientation !== this.currentOrientation) {
-      this.currentOrientation = newOrientation;
+    if (targetOrientation !== this.currentOrientation) {
+      console.log(`🎚️ SliderManager: ${this.currentOrientation} → ${targetOrientation}`);
+      this.currentOrientation = targetOrientation;
       
-      // Tue tous les ScrollTriggers existants
-      ScrollTrigger.getAll().forEach(trigger => {
-        if (trigger.vars.trigger && this.sliderItems.includes(trigger.vars.trigger)) {
-          trigger.kill();
-        }
-      });
+      // Tue seulement les ScrollTriggers liés à ce gestionnaire
+      this.destroyScrollTriggers();
       
       // Recrée les animations avec la nouvelle orientation
       this.createScrollAnimations();
       this.setupIndicatorBall();
       
-      // Rafraîchit ScrollTrigger
-      ScrollTrigger.refresh();
+      // Pas de ScrollTrigger.refresh() ici - sera fait de manière centralisée
+      console.log('✅ SliderManager mis à jour');
     }
   }
 
@@ -472,19 +472,31 @@ export class SliderManager {
   }
 
   /**
-   * Nettoie les event listeners et les animations
+   * Détruit seulement les ScrollTriggers liés à ce gestionnaire
    */
-  destroy() {
-    // Nettoie l'event listener d'orientation
-    if (this.removeOrientationListener) {
-      this.removeOrientationListener();
-    }
-    
-    // Tue tous les ScrollTriggers liés aux slides
+  destroyScrollTriggers() {
     ScrollTrigger.getAll().forEach(trigger => {
       if (trigger.vars.trigger && this.sliderItems.includes(trigger.vars.trigger)) {
         trigger.kill();
       }
     });
+  }
+
+  /**
+   * Nettoie les event listeners et les animations
+   */
+  destroy() {
+    // Se désabonner du gestionnaire centralisé d'orientation
+    if (window.orientationManager) {
+      window.orientationManager.unsubscribe('SliderManager');
+    }
+    
+    // Nettoie l'event listener d'orientation (fallback)
+    if (this.removeOrientationListener) {
+      this.removeOrientationListener();
+    }
+    
+    // Tue tous les ScrollTriggers liés aux slides
+    this.destroyScrollTriggers();
   }
 }

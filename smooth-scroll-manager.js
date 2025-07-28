@@ -89,19 +89,21 @@ export class SmoothScrollManager {
    * Configure la gestion responsive pour changer l'orientation
    */
   setupResponsiveHandler() {
-    // Utilise WindowUtils si disponible pour un meilleur debounce
-    if (window.WindowUtils) {
-      this.removeResizeListener = window.WindowUtils.onBreakpointChange((newBreakpoint) => {
-        this.handleOrientationChange();
-      });
+    // S'abonner au gestionnaire centralisé d'orientation
+    if (window.orientationManager) {
+      window.orientationManager.subscribe('SmoothScrollManager', (newOrientation, context) => {
+        this.handleOrientationChange(newOrientation, context);
+      }, 1); // Priorité 1 (traité en premier)
     } else {
-      // Fallback basique avec debounce manuel
+      // Fallback si le gestionnaire centralisé n'est pas disponible
+      console.warn('⚠️ OrientationManager non disponible, utilisation du fallback');
+      
       let resizeTimeout;
       const handleResize = () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
           this.handleOrientationChange();
-        }, 250);
+        }, 500); // Délai plus long pour éviter les conflits
       };
       
       window.addEventListener('resize', handleResize);
@@ -114,15 +116,17 @@ export class SmoothScrollManager {
   /**
    * Gère le changement d'orientation lors du resize
    */
-  handleOrientationChange() {
-    const newOrientation = this.getCurrentOrientation();
+  handleOrientationChange(newOrientation = null, context = null) {
+    const targetOrientation = newOrientation || this.getCurrentOrientation();
     const currentOrientation = this.lenis.options.orientation;
     
-    if (newOrientation !== currentOrientation) {
+    if (targetOrientation !== currentOrientation) {
+      console.log(`📜 SmoothScrollManager: ${currentOrientation} → ${targetOrientation}`);
+      
       // Sauvegarde l'état du scroll actuel
       const wasStarted = !this.lenis.isStopped;
       
-      // Recrée l'instance Lenis
+      // Recrée l'instance Lenis avec la nouvelle orientation
       this.createLenisInstance();
       
       // Restaure l'état du scroll
@@ -130,10 +134,8 @@ export class SmoothScrollManager {
         this.lenis.stop();
       }
       
-      // Rafraîchit ScrollTrigger après le changement
-      if (window.ScrollTrigger) {
-        ScrollTrigger.refresh();
-      }
+      // Pas de ScrollTrigger.refresh() ici - sera fait de manière centralisée
+      console.log('✅ SmoothScrollManager mis à jour');
     }
   }
 
@@ -207,7 +209,12 @@ export class SmoothScrollManager {
    * Détruit le gestionnaire de scroll et nettoie tous les event listeners
    */
   destroy() {
-    // Nettoie l'event listener de resize
+    // Se désabonner du gestionnaire centralisé d'orientation
+    if (window.orientationManager) {
+      window.orientationManager.unsubscribe('SmoothScrollManager');
+    }
+    
+    // Nettoie l'event listener de resize (fallback)
     if (this.removeResizeListener) {
       this.removeResizeListener();
     }
