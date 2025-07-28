@@ -41,6 +41,11 @@ export class DebugUtils {
     this.checkOtherElements();
     console.groupEnd();
     
+    // 6. NOUVEAU : Diagnostic des problèmes critiques
+    console.group('🚨 Diagnostic de performance/crashes');
+    this.checkCriticalIssues();
+    console.groupEnd();
+    
     console.groupEnd();
   }
   
@@ -138,6 +143,251 @@ export class DebugUtils {
     console.log('Slider items:', sliderItems.length);
     console.log('Modal triggers:', modalTriggers.length);
     console.log('Rich text elements:', richTextElements.length);
+  }
+  
+  /**
+   * NOUVEAU : Diagnostic approfondi des problèmes critiques qui causent des crashes
+   */
+  static checkCriticalIssues() {
+    console.log('🔍 Recherche de problèmes critiques...');
+    
+    // 1. Vérifier les event listeners multiples
+    this.checkEventListenerLeaks();
+    
+    // 2. Vérifier les timers/intervals actifs
+    this.checkActiveTimers();
+    
+    // 3. Vérifier la mémoire et les ScrollTriggers
+    this.checkMemoryIssues();
+    
+    // 4. Vérifier les boucles infinies potentielles
+    this.checkPotentialInfiniteLoops();
+    
+    // 5. Vérifier les erreurs silencieuses
+    this.setupErrorCatching();
+  }
+  
+  /**
+   * Détecte les event listeners qui pourraient causer des fuites
+   */
+  static checkEventListenerLeaks() {
+    console.log('👂 Vérification des event listeners...');
+    
+    // Compter les event listeners sur window
+    const listeners = {
+      resize: 0,
+      scroll: 0,
+      orientationchange: 0,
+      load: 0,
+      beforeunload: 0
+    };
+    
+    // Méthode pour intercepter addEventListener temporairement
+    const originalAddEventListener = window.addEventListener;
+    let listenerCount = 0;
+    
+    // Override temporaire pour compter
+    window.addEventListener = function(type, listener, options) {
+      if (listeners.hasOwnProperty(type)) {
+        listeners[type]++;
+      }
+      listenerCount++;
+      return originalAddEventListener.call(this, type, listener, options);
+    };
+    
+    // Restaurer après 1 seconde
+    setTimeout(() => {
+      window.addEventListener = originalAddEventListener;
+    }, 1000);
+    
+    console.log('📊 Event listeners détectés:', listeners);
+    console.log('📈 Total listeners sur window:', listenerCount);
+    
+    // Vérifications critiques
+    if (listeners.resize > 3) {
+      console.warn('⚠️ ALERTE: Trop d\'event listeners resize (>3)');
+    }
+    if (listeners.orientationchange > 2) {
+      console.warn('⚠️ ALERTE: Trop d\'event listeners orientationchange (>2)');
+    }
+  }
+  
+  /**
+   * Vérifie les timers et intervals actifs
+   */
+  static checkActiveTimers() {
+    console.log('⏰ Vérification des timers actifs...');
+    
+    // Intercepter setTimeout et setInterval pour les compter
+    let timeoutCount = 0;
+    let intervalCount = 0;
+    
+    const originalSetTimeout = window.setTimeout;
+    const originalSetInterval = window.setInterval;
+    const originalClearTimeout = window.clearTimeout;
+    const originalClearInterval = window.clearInterval;
+    
+    window.setTimeout = function(...args) {
+      timeoutCount++;
+      console.log(`⏱️ Nouveau setTimeout créé (total: ${timeoutCount})`);
+      return originalSetTimeout.apply(this, args);
+    };
+    
+    window.setInterval = function(...args) {
+      intervalCount++;
+      console.log(`🔄 Nouveau setInterval créé (total: ${intervalCount})`);
+      return originalSetInterval.apply(this, args);
+    };
+    
+    window.clearTimeout = function(...args) {
+      timeoutCount = Math.max(0, timeoutCount - 1);
+      return originalClearTimeout.apply(this, args);
+    };
+    
+    window.clearInterval = function(...args) {
+      intervalCount = Math.max(0, intervalCount - 1);
+      return originalClearInterval.apply(this, args);
+    };
+    
+    // Restaurer après surveillance
+    setTimeout(() => {
+      window.setTimeout = originalSetTimeout;
+      window.setInterval = originalSetInterval;
+      window.clearTimeout = originalClearTimeout;
+      window.clearInterval = originalClearInterval;
+      
+      console.log(`📊 Timers finaux - Timeouts: ${timeoutCount}, Intervals: ${intervalCount}`);
+      
+      if (intervalCount > 5) {
+        console.warn('⚠️ ALERTE: Trop d\'intervals actifs (>5)');
+      }
+    }, 5000);
+  }
+  
+  /**
+   * Vérifie les problèmes de mémoire et ScrollTriggers
+   */
+  static checkMemoryIssues() {
+    console.log('🧠 Vérification de la mémoire...');
+    
+    // Vérifier les ScrollTriggers
+    if (window.ScrollTrigger) {
+      const triggers = ScrollTrigger.getAll();
+      console.log('📜 ScrollTriggers actifs:', triggers.length);
+      
+      if (triggers.length > 20) {
+        console.warn('⚠️ ALERTE: Trop de ScrollTriggers (>20)');
+        console.log('📋 Détail des triggers:');
+        triggers.forEach((trigger, index) => {
+          console.log(`  ${index + 1}:`, trigger.vars.trigger?.className || 'Unknown');
+        });
+      }
+    }
+    
+    // Vérifier la performance
+    if (performance.memory) {
+      const memory = performance.memory;
+      console.log('💾 Mémoire:', {
+        used: Math.round(memory.usedJSHeapSize / 1024 / 1024) + ' MB',
+        total: Math.round(memory.totalJSHeapSize / 1024 / 1024) + ' MB',
+        limit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024) + ' MB'
+      });
+      
+      const usagePercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
+      if (usagePercent > 80) {
+        console.warn('⚠️ ALERTE: Utilisation mémoire élevée (>80%)');
+      }
+    }
+  }
+  
+  /**
+   * Détecte les boucles infinies potentielles
+   */
+  static checkPotentialInfiniteLoops() {
+    console.log('🔄 Recherche de boucles infinies...');
+    
+    // Surveiller les appels répétés à certaines fonctions
+    let scrollTriggerRefreshCount = 0;
+    let resizeEventCount = 0;
+    
+    if (window.ScrollTrigger) {
+      const originalRefresh = ScrollTrigger.refresh;
+      ScrollTrigger.refresh = function(...args) {
+        scrollTriggerRefreshCount++;
+        console.log(`🔄 ScrollTrigger.refresh() appelé (${scrollTriggerRefreshCount} fois)`);
+        
+        if (scrollTriggerRefreshCount > 10) {
+          console.error('🚨 ALERTE CRITIQUE: ScrollTrigger.refresh() appelé trop souvent!');
+          console.trace('Stack trace de l\'appel:');
+        }
+        
+        return originalRefresh.apply(this, args);
+      };
+    }
+    
+    // Surveiller les événements resize
+    window.addEventListener('resize', () => {
+      resizeEventCount++;
+      if (resizeEventCount > 20) {
+        console.error('🚨 ALERTE CRITIQUE: Trop d\'événements resize!');
+        console.trace('Stack trace de l\'événement resize:');
+      }
+    });
+    
+    // Reset après 10 secondes
+    setTimeout(() => {
+      scrollTriggerRefreshCount = 0;
+      resizeEventCount = 0;
+    }, 10000);
+  }
+  
+  /**
+   * Configure la capture d'erreurs silencieuses
+   */
+  static setupErrorCatching() {
+    console.log('🕷️ Configuration de la capture d\'erreurs...');
+    
+    // Capturer les erreurs globales
+    window.addEventListener('error', (event) => {
+      console.error('🚨 ERREUR GLOBALE DÉTECTÉE:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        error: event.error
+      });
+    });
+    
+    // Capturer les promesses rejetées
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('🚨 PROMESSE REJETÉE DÉTECTÉE:', {
+        reason: event.reason,
+        promise: event.promise
+      });
+    });
+    
+    // Surveiller les navigations/reloads
+    window.addEventListener('beforeunload', (event) => {
+      console.warn('⚠️ Page sur le point de se décharger/recharger');
+    });
+    
+    // Détecter les freezes
+    let lastHeartbeat = Date.now();
+    const heartbeatInterval = setInterval(() => {
+      const now = Date.now();
+      const delay = now - lastHeartbeat - 1000; // 1000ms attendu
+      
+      if (delay > 500) {
+        console.warn(`💓 Heartbeat retardé de ${delay}ms (possible freeze)`);
+      }
+      
+      lastHeartbeat = now;
+    }, 1000);
+    
+    // Arrêter la surveillance après 30 secondes
+    setTimeout(() => {
+      clearInterval(heartbeatInterval);
+    }, 30000);
   }
   
   /**
