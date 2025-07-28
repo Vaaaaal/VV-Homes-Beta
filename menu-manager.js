@@ -968,6 +968,31 @@ export class MenuManager {
     for (let i = 0; i < randomCount; i++) {
       reviewCards[indices[i]].classList.add('is-reverse');
     }
+
+    // Appliquer les modifications aux cartes de review
+    this.applyReviewCardChanges();
+  }
+
+  /**
+   * Permet d'appliquer des modifications aux cartes de review au clics sur celles-ci
+   * @return {Promise<void>}
+   */
+  applyReviewCardChanges() {
+    const reviewCards = document.querySelectorAll('.review-card_wrap');
+
+    // Appliquer les modifications à chaque carte
+    reviewCards.forEach(card => {
+      card.addEventListener('click', () => {
+        // Vérifier si la carte a déjà la classe "is-reverse"
+        if (card.classList.contains('is-reverse')) {
+          // Si oui, retirer la classe
+          card.classList.remove('is-reverse');
+        } else {
+          // Sinon, ajouter la classe
+          card.classList.add('is-reverse');
+        }
+      });
+    });
   }
 
   /**
