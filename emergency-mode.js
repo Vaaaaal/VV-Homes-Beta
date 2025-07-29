@@ -2,6 +2,8 @@
 // MODE D'URGENCE POUR LES PROBLÈMES D'ORIENTATION
 // ==========================================
 
+import logger from './logger.js';
+
 /**
  * EmergencyMode - Désactive temporairement toutes les fonctionnalités problématiques
  * À utiliser quand le site plante lors des changements d'orientation
@@ -18,12 +20,12 @@ export class EmergencyMode {
    */
   async activate() {
     if (this.isActive) {
-      console.warn('⚠️ Mode d\'urgence déjà actif');
+      logger.warn('Mode d\'urgence déjà actif');
       return;
     }
     
-    console.warn('🚨 ACTIVATION DU MODE D\'URGENCE');
-    console.warn('🚨 Désactivation des fonctionnalités problématiques...');
+    logger.emergency('ACTIVATION DU MODE D\'URGENCE');
+    logger.emergency('Désactivation des fonctionnalités problématiques...');
     
     this.isActive = true;
     
@@ -42,15 +44,15 @@ export class EmergencyMode {
     // 5. Simplifier le menu
     await this.simplifyMenu();
     
-    console.warn('✅ Mode d\'urgence activé - Site en mode simplifié');
-    console.warn('📋 Pour réactiver: emergencyMode.deactivate()');
+    logger.success('Mode d\'urgence activé - Site en mode simplifié');
+    logger.info('Pour réactiver: emergencyMode.deactivate()');
   }
   
   /**
    * Désactive tous les event listeners d'orientation
    */
   disableOrientationListeners() {
-    console.log('🔇 Désactivation des event listeners d\'orientation...');
+    logger.debug('Désactivation des event listeners d\'orientation...');
     
     // Sauvegarder et remplacer addEventListener pour bloquer resize/orientationchange
     if (!this.originalFunctions.has('addEventListener')) {
@@ -59,7 +61,7 @@ export class EmergencyMode {
     
     window.addEventListener = (type, listener, options) => {
       if (type === 'resize' || type === 'orientationchange') {
-        console.log(`🚫 Event listener ${type} bloqué par le mode d'urgence`);
+        logger.debug(`Event listener ${type} bloqué par le mode d'urgence`);
         return;
       }
       return this.originalFunctions.get('addEventListener').call(window, type, listener, options);
@@ -80,7 +82,7 @@ export class EmergencyMode {
   disableScrollTrigger() {
     if (!window.ScrollTrigger) return;
     
-    console.log('📜 Désactivation de ScrollTrigger...');
+    logger.debug('Désactivation de ScrollTrigger...');
     
     // Sauvegarder la fonction refresh
     if (!this.originalFunctions.has('ScrollTriggerRefresh')) {
@@ -89,7 +91,7 @@ export class EmergencyMode {
     
     // Remplacer par une fonction vide
     ScrollTrigger.refresh = () => {
-      console.log('🚫 ScrollTrigger.refresh() bloqué par le mode d\'urgence');
+      logger.debug('ScrollTrigger.refresh() bloqué par le mode d\'urgence');
     };
     
     // Désactiver tous les triggers existants
@@ -104,7 +106,7 @@ export class EmergencyMode {
   disableGSAPAnimations() {
     if (!window.gsap) return;
     
-    console.log('🎭 Désactivation des animations GSAP...');
+    logger.animation('Désactivation des animations GSAP...');
     
     // Tuer toutes les animations en cours
     gsap.killTweensOf('*');
@@ -118,7 +120,7 @@ export class EmergencyMode {
       }
       
       gsap[funcName] = (...args) => {
-        console.log(`🚫 gsap.${funcName}() bloqué par le mode d'urgence`);
+        logger.debug(`gsap.${funcName}() bloqué par le mode d'urgence`);
         return { kill: () => {} }; // Retourner un objet factice
       };
     });
@@ -130,7 +132,7 @@ export class EmergencyMode {
    * Désactive le smooth scroll
    */
   disableSmoothScroll() {
-    console.log('📜 Désactivation du smooth scroll...');
+    logger.scroll('Désactivation du smooth scroll...');
     
     // Désactiver Lenis si disponible
     if (window.app && window.app.smoothScrollManager && window.app.smoothScrollManager.lenis) {
@@ -149,7 +151,7 @@ export class EmergencyMode {
    * Simplifie le menu pour le rendre plus robuste
    */
   async simplifyMenu() {
-    console.log('🍔 Simplification du menu...');
+    logger.menu('Simplification du menu...');
     
     // Désactiver le MenuManager complexe et utiliser le fallback
     if (window.app && window.app.menuManager) {
@@ -163,9 +165,9 @@ export class EmergencyMode {
         const { MenuFallback } = await import('./menu-fallback.js');
         window.app.menuFallback = new MenuFallback();
         window.app.menuFallback.init();
-        console.log('✅ Menu de fallback activé');
+        logger.success('Menu de fallback activé');
       } catch (error) {
-        console.error('❌ Impossible d\'activer le menu de fallback:', error);
+        logger.error('Impossible d\'activer le menu de fallback:', error);
       }
     }
     
@@ -177,12 +179,12 @@ export class EmergencyMode {
    */
   deactivate() {
     if (!this.isActive) {
-      console.warn('⚠️ Mode d\'urgence déjà inactif');
+      logger.warn('Mode d\'urgence déjà inactif');
       return;
     }
     
-    console.log('🔄 DÉSACTIVATION DU MODE D\'URGENCE');
-    console.log('🔄 Restauration des fonctionnalités...');
+    logger.info('DÉSACTIVATION DU MODE D\'URGENCE');
+    logger.info('Restauration des fonctionnalités...');
     
     // Restaurer les fonctions originales
     this.originalFunctions.forEach((originalFunc, key) => {
@@ -217,15 +219,15 @@ export class EmergencyMode {
     this.disabledFeatures = [];
     this.originalFunctions.clear();
     
-    console.log('✅ Mode d\'urgence désactivé - Fonctionnalités restaurées');
-    console.log('⚠️ Il est recommandé de recharger la page pour une restauration complète');
+    logger.success('Mode d\'urgence désactivé - Fonctionnalités restaurées');
+    logger.warn('Il est recommandé de recharger la page pour une restauration complète');
   }
   
   /**
    * Active un mode "lecture seule" encore plus restrictif
    */
   async activateReadOnlyMode() {
-    console.warn('📖 ACTIVATION DU MODE LECTURE SEULE');
+    logger.emergency('ACTIVATION DU MODE LECTURE SEULE');
     
     await this.activate(); // Active d'abord le mode d'urgence
     
@@ -233,7 +235,7 @@ export class EmergencyMode {
     this.disableAllInteractions();
     this.disableAllAnimations();
     
-    console.warn('✅ Mode lecture seule activé - Site complètement statique');
+    logger.success('Mode lecture seule activé - Site complètement statique');
   }
   
   /**
@@ -244,7 +246,7 @@ export class EmergencyMode {
     document.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log('🚫 Interaction bloquée par le mode lecture seule');
+      logger.debug('Interaction bloquée par le mode lecture seule');
     }, true);
     
     // Désactiver le menu
@@ -287,9 +289,9 @@ export class EmergencyMode {
 window.EmergencyMode = EmergencyMode;
 window.emergencyMode = new EmergencyMode();
 
-console.log('🚨 EmergencyMode chargé !');
-console.log('📋 Commandes d\'urgence:');
-console.log('  - emergencyMode.activate() : Active le mode d\'urgence');
-console.log('  - emergencyMode.activateReadOnlyMode() : Mode encore plus restrictif');
-console.log('  - emergencyMode.deactivate() : Désactive le mode d\'urgence');
-console.log('  - emergencyMode.getStatus() : État du mode');
+logger.info('EmergencyMode chargé !');
+logger.info('Commandes d\'urgence:');
+logger.info('  - emergencyMode.activate() : Active le mode d\'urgence');
+logger.info('  - emergencyMode.activateReadOnlyMode() : Mode encore plus restrictif');
+logger.info('  - emergencyMode.deactivate() : Désactive le mode d\'urgence');
+logger.info('  - emergencyMode.getStatus() : État du mode');

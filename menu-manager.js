@@ -3,6 +3,7 @@
 // ==========================================
 import { CONFIG } from './config.js';
 import { RichTextManager } from './rich-text-manager.js';
+import logger from './logger.js';
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -43,10 +44,10 @@ export class MenuManager {
    * Initialise le système de menu avec approche incrémentale
    */
   async init() {
-    console.log('🍔 MenuManager - Début de l\'initialisation incrémentale');
+    logger.menu(' MenuManager - Début de l\'initialisation incrémentale');
     
     if (!this.menu || !this.menuButton) {
-      console.error('❌ MenuManager - Éléments essentiels manquants:', {
+      logger.error(' MenuManager - Éléments essentiels manquants:', {
         menu: !!this.menu,
         menuButton: !!this.menuButton
       });
@@ -54,17 +55,17 @@ export class MenuManager {
     }
     
     try {
-      console.log('⏳ Attente de Finsweet Attributes...');
+      logger.log('⏳ Attente de Finsweet Attributes...');
       await this.waitForFinsweetAttributes();
-      console.log('✅ Finsweet Attributes chargé');
+      logger.success(' Finsweet Attributes chargé');
 
-      console.log('🔄 Initialisation incrémentale des éléments CMS...');
+      logger.info(' Initialisation incrémentale des éléments CMS...');
       await this.initIncrementalCMS();
       
-      console.log('🎉 MenuManager - Initialisation terminée avec succès');
+      logger.success(' MenuManager - Initialisation terminée avec succès');
       
     } catch (error) {
-      console.error('❌ MenuManager - Erreur lors de l\'initialisation:', error);
+      logger.error(' MenuManager - Erreur lors de l\'initialisation:', error);
       throw error;
     }
   }
@@ -77,7 +78,7 @@ export class MenuManager {
     const INITIAL_WAIT = 1000;   // Attente initiale
     const MAX_WAIT = 6000;       // Attente maximum
     
-    console.log(`🎯 Objectif initial : au moins ${MINIMUM_ELEMENTS} boutons CMS`);
+    logger.log(`🎯 Objectif initial : au moins ${MINIMUM_ELEMENTS} boutons CMS`);
     
     // Attendre un délai initial pour que les premiers éléments se chargent
     await new Promise(resolve => setTimeout(resolve, INITIAL_WAIT));
@@ -86,11 +87,11 @@ export class MenuManager {
     this.updateCMSButtons();
     const initialCount = this.cmsButtons.length;
     
-    console.log(`� ${initialCount} boutons CMS détectés initialement`);
+    logger.log(`� ${initialCount} boutons CMS détectés initialement`);
     
     if (initialCount >= MINIMUM_ELEMENTS) {
       // On a assez d'éléments pour commencer
-      console.log(`✅ Seuil minimum atteint (${initialCount}/${MINIMUM_ELEMENTS})`);
+      logger.success(' Seuil minimum atteint (${initialCount}/${MINIMUM_ELEMENTS})');
       this.initializeMenuWithCurrentElements();
       
       // Surveiller les nouveaux éléments en arrière-plan
@@ -98,7 +99,7 @@ export class MenuManager {
       
     } else {
       // Pas assez d'éléments, attendre un peu plus
-      console.log(`⏳ Pas assez d'éléments (${initialCount}/${MINIMUM_ELEMENTS}), attente supplémentaire...`);
+      logger.log(`⏳ Pas assez d'éléments (${initialCount}/${MINIMUM_ELEMENTS}), attente supplémentaire...`);
       
       const startTime = Date.now();
       while (Date.now() - startTime < MAX_WAIT) {
@@ -108,11 +109,11 @@ export class MenuManager {
         const currentCount = this.cmsButtons.length;
         
         if (currentCount !== initialCount) {
-          console.log(`� ${currentCount} boutons CMS détectés (+${currentCount - initialCount})`);
+          logger.log(`� ${currentCount} boutons CMS détectés (+${currentCount - initialCount})`);
         }
         
         if (currentCount >= MINIMUM_ELEMENTS) {
-          console.log(`✅ Seuil minimum atteint (${currentCount}/${MINIMUM_ELEMENTS})`);
+          logger.success(' Seuil minimum atteint (${currentCount}/${MINIMUM_ELEMENTS})');
           this.initializeMenuWithCurrentElements();
           this.startIncrementalWatcher();
           return;
@@ -120,7 +121,7 @@ export class MenuManager {
       }
       
       // Timeout atteint, initialiser avec ce qu'on a
-      console.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
+      logger.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
       this.initializeMenuWithCurrentElements();
       this.startIncrementalWatcher();
     }
@@ -135,7 +136,7 @@ export class MenuManager {
     this.cmsButtons = newButtons;
     
     if (newButtons.length !== previousCount && previousCount > 0) {
-      console.log(`🔄 Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}`);
+      logger.info(' Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}');
     }
     
     return newButtons;
@@ -145,7 +146,7 @@ export class MenuManager {
    * Initialise le menu avec les éléments actuellement disponibles
    */
   initializeMenuWithCurrentElements() {
-    console.log(`🎨 Initialisation du menu avec ${this.cmsButtons.length} boutons`);
+    logger.log(`🎨 Initialisation du menu avec ${this.cmsButtons.length} boutons`);
     
     // Initialiser les positions et événements
     this.initPanelPositions();
@@ -156,15 +157,15 @@ export class MenuManager {
     
     // Randomiser les cartes de review
     this.randomizeReviewCards().then(() => {
-      console.log('✅ Cartes de review randomisées');
+      logger.success(' Cartes de review randomisées');
     });
     
     // Initialiser le Rich Text Manager
     this.initRichTextManager().then(() => {
-      console.log('✅ Rich Text Manager initialisé');
+      logger.success(' Rich Text Manager initialisé');
     });
     
-    console.log('✅ Menu initialisé avec les éléments actuels');
+    logger.success(' Menu initialisé avec les éléments actuels');
   }
 
   /**
@@ -178,7 +179,7 @@ export class MenuManager {
       }
     });
     
-    console.log(`� Événements attachés à ${this.cmsButtons.length} boutons`);
+    logger.log(`� Événements attachés à ${this.cmsButtons.length} boutons`);
   }
 
   /**
@@ -195,7 +196,7 @@ export class MenuManager {
    * Démarre la surveillance incrémentale des nouveaux éléments
    */
   startIncrementalWatcher() {
-    console.log('👁️ Démarrage de la surveillance incrémentale...');
+    logger.log('👁️ Démarrage de la surveillance incrémentale...');
     
     const observer = new MutationObserver((mutations) => {
       let hasNewElements = false;
@@ -234,7 +235,7 @@ export class MenuManager {
     // Stocker l'observer pour pouvoir l'arrêter plus tard
     this.incrementalObserver = observer;
     
-    console.log('✅ Surveillance incrémentale active');
+    logger.success(' Surveillance incrémentale active');
   }
 
   /**
@@ -247,7 +248,7 @@ export class MenuManager {
     
     if (newCount > previousCount) {
       const addedCount = newCount - previousCount;
-      console.log(`🆕 ${addedCount} nouveaux boutons CMS détectés (total: ${newCount})`);
+      logger.log(`🆕 ${addedCount} nouveaux boutons CMS détectés (total: ${newCount})`);
       
       // Attacher les événements aux nouveaux boutons uniquement
       this.attachCMSButtonEvents();
@@ -264,7 +265,7 @@ export class MenuManager {
    * Met à jour les positions des panels après ajout d'éléments
    */
   updatePanelPositions() {
-    console.log('🔄 Mise à jour des positions des panels...');
+    logger.info(' Mise à jour des positions des panels...');
     this.initPanelPositions();
   }
 
@@ -278,22 +279,22 @@ export class MenuManager {
     
     // Vérification immédiate
     if (this.checkFinsweetLoaded()) {
-      console.log('✅ Finsweet Attributes déjà disponible');
+      logger.success(' Finsweet Attributes déjà disponible');
       return true;
     }
     
-    console.log('⏳ Attente de Finsweet Attributes...');
+    logger.log('⏳ Attente de Finsweet Attributes...');
     
     return new Promise((resolve) => {
       const checkLoad = () => {
         if (this.checkFinsweetLoaded()) {
-          console.log('✅ Finsweet Attributes détecté');
+          logger.success(' Finsweet Attributes détecté');
           resolve(true);
           return;
         }
         
         if (Date.now() - startTime > maxWaitTime) {
-          console.warn('⚠️ Timeout Finsweet Attributes - Continuation sans attendre');
+          logger.warn(' Timeout Finsweet Attributes - Continuation sans attendre');
           resolve(false); // Ne pas rejeter, juste continuer
           return;
         }
@@ -379,7 +380,7 @@ export class MenuManager {
     // Événements pour les liens de menu avec data-menu-link
     this.initMenuLinkEvents();
     
-    console.log('🎯 Événements de base initialisés');
+    logger.log('🎯 Événements de base initialisés');
   }
 
   // ==========================================

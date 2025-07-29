@@ -1,3 +1,4 @@
+import logger from './logger.js';
 // ==========================================
 // DÉTECTEUR DE CRASHES D'ORIENTATION
 // ==========================================
@@ -30,7 +31,7 @@ export class CrashDetector {
    * Initialise le détecteur de crash
    */
   init() {
-    console.log('🚨 CrashDetector - Surveillance des crashes d\'orientation activée');
+    logger.log('🚨 CrashDetector - Surveillance des crashes d\'orientation activée');
     this.setupOrientationMonitoring();
     this.setupPerformanceMonitoring();
     this.setupMemoryMonitoring();
@@ -206,7 +207,7 @@ export class CrashDetector {
     this.crashEvents.push(crashEvent);
     
     // Log immédiat
-    console.error(`🚨 RISQUE DE CRASH DÉTECTÉ: ${type}`, crashEvent);
+    logger.error(`🚨 RISQUE DE CRASH DÉTECTÉ: ${type}`, crashEvent);
     
     // Déclencher des mesures préventives
     this.takePreventiveMeasures(type, data);
@@ -221,7 +222,7 @@ export class CrashDetector {
    * Prend des mesures préventives selon le type de risque
    */
   takePreventiveMeasures(type, data) {
-    console.warn(`🛡️ Mesures préventives pour ${type}...`);
+    logger.warn(`🛡️ Mesures préventives pour ${type}...`);
     
     switch (type) {
       case 'ORIENTATION_TOO_RAPID':
@@ -247,7 +248,7 @@ export class CrashDetector {
    * Prévient le spam d'orientation
    */
   preventOrientationSpam() {
-    console.warn('🛡️ Prévention du spam d\'orientation - Désactivation temporaire');
+    logger.warn('🛡️ Prévention du spam d\'orientation - Désactivation temporaire');
     
     // Désactiver temporairement les event listeners d'orientation
     if (window.orientationManager) {
@@ -255,7 +256,7 @@ export class CrashDetector {
       
       setTimeout(() => {
         window.orientationManager.isProcessing = false;
-        console.log('✅ Event listeners d\'orientation réactivés');
+        logger.success(' Event listeners d\'orientation réactivés');
       }, 2000);
     }
   }
@@ -264,7 +265,7 @@ export class CrashDetector {
    * Prévient les boucles ScrollTrigger
    */
   preventScrollTriggerLoop() {
-    console.warn('🛡️ Prévention de boucle ScrollTrigger - Nettoyage forcé');
+    logger.warn('🛡️ Prévention de boucle ScrollTrigger - Nettoyage forcé');
     
     if (window.ScrollTrigger) {
       // Désactiver temporairement tous les ScrollTriggers
@@ -273,7 +274,7 @@ export class CrashDetector {
       setTimeout(() => {
         ScrollTrigger.enable();
         ScrollTrigger.refresh();
-        console.log('✅ ScrollTriggers réactivés après nettoyage');
+        logger.success(' ScrollTriggers réactivés après nettoyage');
       }, 1000);
     }
   }
@@ -282,7 +283,7 @@ export class CrashDetector {
    * Libère de la mémoire
    */
   freeMemory() {
-    console.warn('🛡️ Libération de mémoire...');
+    logger.warn('🛡️ Libération de mémoire...');
     
     // Forcer le garbage collection si possible
     if (window.gc) {
@@ -298,19 +299,19 @@ export class CrashDetector {
       });
     }
     
-    console.log('✅ Tentative de libération mémoire effectuée');
+    logger.success(' Tentative de libération mémoire effectuée');
   }
   
   /**
    * Gère les freezes d'interface
    */
   handleUIFreeze() {
-    console.warn('🛡️ Gestion du freeze UI - Redémarrage des animations');
+    logger.warn('🛡️ Gestion du freeze UI - Redémarrage des animations');
     
     // Redémarrer GSAP si disponible
     if (window.gsap) {
       gsap.killTweensOf('*');
-      console.log('✅ Animations GSAP redémarrées');
+      logger.success(' Animations GSAP redémarrées');
     }
   }
   
@@ -342,7 +343,7 @@ export class CrashDetector {
     };
     
     console.group('📊 RAPPORT DE CRASH');
-    console.log(report);
+    logger.log(report);
     console.groupEnd();
     
     return report;
@@ -365,14 +366,14 @@ export class CrashDetector {
    */
   setOrientationSpamThreshold(milliseconds = 250) {
     this.THRESHOLDS.ORIENTATION_SPAM_THRESHOLD = milliseconds;
-    console.log(`🎯 Seuil de spam d'orientation défini à ${milliseconds}ms`);
+    logger.log(`🎯 Seuil de spam d'orientation défini à ${milliseconds}ms`);
   }
   
   /**
    * NOUVEAU : Force le mode dégradé pour tous les gestionnaires
    */
   forceDegradedMode() {
-    console.warn('🔧 Activation forcée du mode dégradé');
+    logger.warn('🔧 Activation forcée du mode dégradé');
     
     // Notifier tous les gestionnaires
     if (window.orientationManager) {
@@ -390,14 +391,14 @@ export class CrashDetector {
    */
   stop() {
     this.isMonitoring = false;
-    console.log('🚨 CrashDetector - Surveillance arrêtée');
+    logger.log('🚨 CrashDetector - Surveillance arrêtée');
   }
   
   /**
    * Test de simulation de crash
    */
   simulateCrash(type = 'orientation') {
-    console.warn(`🧪 Simulation de crash: ${type}`);
+    logger.warn(`🧪 Simulation de crash: ${type}`);
     
     switch (type) {
       case 'orientation':
@@ -433,8 +434,8 @@ export class CrashDetector {
 window.CrashDetector = CrashDetector;
 window.crashDetector = new CrashDetector();
 
-console.log('🚨 CrashDetector chargé !');
-console.log('📋 Commandes disponibles:');
-console.log('  - crashDetector.generateCrashReport() : Génère un rapport');
-console.log('  - crashDetector.simulateCrash("orientation") : Simule un crash');
-console.log('  - crashDetector.stop() : Arrête la surveillance');
+logger.log('🚨 CrashDetector chargé !');
+logger.log('📋 Commandes disponibles:');
+logger.log('  - crashDetector.generateCrashReport() : Génère un rapport');
+logger.log('  - crashDetector.simulateCrash("orientation") : Simule un crash');
+logger.log('  - crashDetector.stop() : Arrête la surveillance');

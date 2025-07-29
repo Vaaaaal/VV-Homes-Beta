@@ -1,3 +1,4 @@
+import logger from './logger.js';
 // ==========================================
 // GESTIONNAIRE DE FALLBACK POUR LE MENU
 // ==========================================
@@ -20,15 +21,15 @@ export class MenuFallback {
    */
   init() {
     if (!this.menu || !this.menuButton) {
-      console.warn('⚠️ MenuFallback - Éléments essentiels manquants');
+      logger.warn(' MenuFallback - Éléments essentiels manquants');
       return false;
     }
     
-    console.log('🔄 MenuFallback - Initialisation du menu de base');
+    logger.info(' MenuFallback - Initialisation du menu de base');
     
     // Ouverture du menu
     this.menuButton.addEventListener('click', () => {
-      console.log('🍔 MenuFallback - Ouverture du menu');
+      logger.menu(' MenuFallback - Ouverture du menu');
       this.openMenu();
     });
     
@@ -36,7 +37,7 @@ export class MenuFallback {
     if (this.menuOverlay) {
       this.menuOverlay.addEventListener('click', (e) => {
         if (e.target === this.menuOverlay) {
-          console.log('🍔 MenuFallback - Fermeture par overlay');
+          logger.menu(' MenuFallback - Fermeture par overlay');
           this.closeMenu();
         }
       });
@@ -45,7 +46,7 @@ export class MenuFallback {
     // Fermeture par boutons exit
     this.menuExit.forEach(exitBtn => {
       exitBtn.addEventListener('click', () => {
-        console.log('🍔 MenuFallback - Fermeture par bouton exit');
+        logger.menu(' MenuFallback - Fermeture par bouton exit');
         this.closeMenu();
       });
     });
@@ -53,13 +54,13 @@ export class MenuFallback {
     // Fermeture par Échap
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.menu.classList.contains('is-active')) {
-        console.log('🍔 MenuFallback - Fermeture par Échap');
+        logger.menu(' MenuFallback - Fermeture par Échap');
         this.closeMenu();
       }
     });
     
     this.isInitialized = true;
-    console.log('✅ MenuFallback - Menu de base initialisé');
+    logger.success(' MenuFallback - Menu de base initialisé');
     return true;
   }
   

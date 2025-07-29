@@ -2,6 +2,7 @@
 // GESTIONNAIRE DU SLIDER PRINCIPAL
 // ==========================================
 import { CONFIG } from './config.js';
+import logger from './logger.js';
 
 /**
  * Gère toute la logique du slider horizontal :
@@ -69,7 +70,7 @@ export class SliderManager {
       }, 2); // Priorité 2 (après SmoothScrollManager)
     } else {
       // Fallback si le gestionnaire centralisé n'est pas disponible
-      console.warn('⚠️ OrientationManager non disponible, utilisation du fallback');
+      logger.warn(' OrientationManager non disponible, utilisation du fallback');
       
       let resizeTimeout;
       const handleResize = () => {
@@ -93,7 +94,7 @@ export class SliderManager {
     const targetOrientation = newOrientation || this.getCurrentOrientation();
     
     if (targetOrientation !== this.currentOrientation) {
-      console.log(`🎚️ SliderManager: ${this.currentOrientation} → ${targetOrientation}`);
+      logger.slider(' SliderManager: ${this.currentOrientation} → ${targetOrientation}');
       this.currentOrientation = targetOrientation;
       
       // Détruit et recrée les animations avec la nouvelle orientation
@@ -101,7 +102,7 @@ export class SliderManager {
       this.createScrollAnimations();
       this.setupIndicatorBall();
       
-      console.log('✅ SliderManager mis à jour');
+      logger.success(' SliderManager mis à jour');
     }
   }
 
@@ -327,7 +328,7 @@ export class SliderManager {
    * NOUVEAU : Mode dégradé pour les changements d'orientation rapides
    */
   setupDegradedMode(orientation) {
-    console.log('🔄 SliderManager: Activation du mode dégradé');
+    logger.info(' SliderManager: Activation du mode dégradé');
     
     // Détruit les animations existantes
     this.destroyScrollTriggers();

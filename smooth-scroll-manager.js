@@ -1,3 +1,4 @@
+import logger from './logger.js';
 // ==========================================
 // GESTIONNAIRE DE SCROLL FLUIDE
 // ==========================================
@@ -96,7 +97,7 @@ export class SmoothScrollManager {
       }, 1); // Priorité 1 (traité en premier)
     } else {
       // Fallback si le gestionnaire centralisé n'est pas disponible
-      console.warn('⚠️ OrientationManager non disponible, utilisation du fallback');
+      logger.warn(' OrientationManager non disponible, utilisation du fallback');
       
       let resizeTimeout;
       const handleResize = () => {
@@ -121,7 +122,7 @@ export class SmoothScrollManager {
     const currentOrientation = this.lenis.options.orientation;
     
     if (targetOrientation !== currentOrientation) {
-      console.log(`📜 SmoothScrollManager: ${currentOrientation} → ${targetOrientation}`);
+      logger.scroll(' SmoothScrollManager: ${currentOrientation} → ${targetOrientation}');
       
       // Sauvegarde l'état du scroll actuel
       const wasStarted = !this.lenis.isStopped;
@@ -135,7 +136,7 @@ export class SmoothScrollManager {
       }
       
       // Pas de ScrollTrigger.refresh() ici - sera fait de manière centralisée
-      console.log('✅ SmoothScrollManager mis à jour');
+      logger.success(' SmoothScrollManager mis à jour');
     }
   }
 

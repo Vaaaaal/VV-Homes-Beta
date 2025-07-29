@@ -1,3 +1,4 @@
+import logger from './logger.js';
 // ==========================================
 // GESTIONNAIRE CENTRALISÉ D'ORIENTATION
 // ==========================================
@@ -32,7 +33,7 @@ export class OrientationManager {
    */
   init() {
     this.setupOrientationListener();
-    console.log('🧭 OrientationManager initialisé');
+    logger.orientation(' OrientationManager initialisé');
   }
 
   /**
@@ -64,7 +65,7 @@ export class OrientationManager {
     this.subscribers = new Map([...this.subscribers.entries()]
       .sort((a, b) => a[1].priority - b[1].priority));
     
-    console.log(`📡 ${name} abonné aux changements d'orientation (priorité: ${priority})`);
+    logger.log(`📡 ${name} abonné aux changements d'orientation (priorité: ${priority})`);
   }
 
   /**
@@ -73,7 +74,7 @@ export class OrientationManager {
    */
   unsubscribe(name) {
     this.subscribers.delete(name);
-    console.log(`📡 ${name} désabonné des changements d'orientation`);
+    logger.log(`📡 ${name} désabonné des changements d'orientation`);
   }
 
   /**
@@ -82,7 +83,7 @@ export class OrientationManager {
   setupOrientationListener() {
     const handleChange = () => {
       if (this.isProcessing) {
-        console.log('🔄 Changement d\'orientation ignoré (traitement en cours)');
+        logger.info(' Changement d\'orientation ignoré (traitement en cours)');
         return;
       }
 
@@ -103,11 +104,11 @@ export class OrientationManager {
       let delay;
       if (isRapidChanges) {
         delay = this.DEBOUNCE_DELAYS.rapid;
-        console.warn(`🚨 Changements rapides détectés (${this.recentChanges.length}/s) - Debounce ${delay}ms`);
+        logger.emergency(' Changements rapides détectés (${this.recentChanges.length}/s) - Debounce ${delay}ms');
       } else if (timeSinceLastChange < 200) {
         // Si le changement précédent était très récent, utilise un délai plus long
         delay = this.DEBOUNCE_DELAYS.rapid;
-        console.warn(`⚡ Changement très rapide (${timeSinceLastChange}ms) - Debounce ${delay}ms`);
+        logger.warn(`⚡ Changement très rapide (${timeSinceLastChange}ms) - Debounce ${delay}ms`);
       } else {
         delay = this.DEBOUNCE_DELAYS[isMobile ? 'mobile' : 'desktop'];
       }
@@ -120,7 +121,7 @@ export class OrientationManager {
       }
 
       // Programme le traitement avec le délai approprié
-      console.log(`⏱️ Debounce orientation: ${delay}ms (${isRapidChanges ? 'rapide' : isMobile ? 'mobile' : 'desktop'})`);
+      logger.log(`⏱️ Debounce orientation: ${delay}ms (${isRapidChanges ? 'rapide' : isMobile ? 'mobile' : 'desktop'})`);
       this.debounceTimer = setTimeout(() => {
         this.processOrientationChange();
       }, delay);
@@ -151,7 +152,7 @@ export class OrientationManager {
       return;
     }
 
-    console.log(`🧭 Changement d'orientation détecté: ${this.currentOrientation} → ${newOrientation}`);
+    logger.orientation(' Changement d'orientation détecté: ${this.currentOrientation} → ${newOrientation}`);
     
     // Marque comme en cours de traitement
     this.isProcessing = true;
@@ -162,7 +163,7 @@ export class OrientationManager {
       await this.notifySubscribers(newOrientation);
 
       // Rafraîchissement final coordonné
-      console.log('🔄 Rafraîchissement final des ScrollTriggers...');
+      logger.info(' Rafraîchissement final des ScrollTriggers...');
       if (window.ScrollTrigger) {
         ScrollTrigger.refresh();
       }
@@ -171,7 +172,7 @@ export class OrientationManager {
       // Libère le verrou après un délai de sécurité
       setTimeout(() => {
         this.isProcessing = false;
-        console.log('🔓 Traitement d\'orientation terminé');
+        logger.log('🔓 Traitement d\'orientation terminé');
       }, 100);
     }
   }
@@ -182,7 +183,7 @@ export class OrientationManager {
   async notifySubscribers(newOrientation, context = {}) {
     for (const [name, subscriber] of this.subscribers) {
       try {
-        console.log(`📡 Notification ${name}...`);
+        logger.log(`📡 Notification ${name}...`);
         const startTime = performance.now();
         
         await subscriber.callback(newOrientation, {
@@ -197,7 +198,7 @@ export class OrientationManager {
         
         const duration = performance.now() - startTime;
         subscriber.lastExecution = duration;
-        console.log(`✅ ${name} traité en ${duration.toFixed(2)}ms`);
+        logger.success(' ${name} traité en ${duration.toFixed(2)}ms');
         
         // Pause entre les gestionnaires pour éviter la surcharge
         if (duration > 100) {
@@ -205,7 +206,7 @@ export class OrientationManager {
         }
         
       } catch (error) {
-        console.error(`❌ Erreur lors de la notification ${name}:`, error);
+        logger.error(' Erreur lors de la notification ${name}:', error);
       }
     }
   }
@@ -214,7 +215,7 @@ export class OrientationManager {
    * Force un rafraîchissement de tous les gestionnaires
    */
   forceRefresh() {
-    console.log('🔄 Rafraîchissement forcé de l\'orientation');
+    logger.info(' Rafraîchissement forcé de l\'orientation');
     this.processOrientationChange();
   }
 
@@ -256,6 +257,6 @@ export class OrientationManager {
     this.subscribers.clear();
     this.isProcessing = false;
     
-    console.log('🧭 OrientationManager détruit');
+    logger.orientation(' OrientationManager détruit');
   }
 }

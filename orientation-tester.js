@@ -1,3 +1,4 @@
+import logger from './logger.js';
 // ==========================================
 // SCRIPT DE TEST POUR LES CHANGEMENTS D'ORIENTATION
 // ==========================================
@@ -20,12 +21,12 @@ class OrientationTester {
    */
   async runOrientationStressTest() {
     if (this.testRunning) {
-      console.log('⚠️ Test déjà en cours');
+      logger.log('⚠️ Test déjà en cours');
       return;
     }
 
     console.group('🧪 TEST DE ROBUSTESSE D\'ORIENTATION');
-    console.log('🚀 Début du test de stress...');
+    logger.loading(' Début du test de stress...');
     
     this.testRunning = true;
     this.changeCount = 0;
@@ -48,7 +49,7 @@ class OrientationTester {
       this.generateReport();
       
     } catch (error) {
-      console.error('❌ Erreur critique pendant le test:', error);
+      logger.error(' Erreur critique pendant le test:', error);
       this.errors.push({
         type: 'critical',
         message: error.message,
@@ -85,7 +86,7 @@ class OrientationTester {
    * Test de changements rapides d'orientation
    */
   async testRapidChanges() {
-    console.log('⚡ Test 1: Changements rapides (5 changements en 2 secondes)');
+    logger.log('⚡ Test 1: Changements rapides (5 changements en 2 secondes)');
     
     for (let i = 0; i < 5; i++) {
       this.simulateOrientationChange();
@@ -94,14 +95,14 @@ class OrientationTester {
     }
     
     await this.wait(1000); // Attendre la stabilisation
-    console.log('✅ Test 1 terminé');
+    logger.success(' Test 1 terminé');
   }
 
   /**
    * Test de changements avec délai normal
    */
   async testDelayedChanges() {
-    console.log('🕐 Test 2: Changements normaux (3 changements avec 2s de délai)');
+    logger.log('🕐 Test 2: Changements normaux (3 changements avec 2s de délai)');
     
     for (let i = 0; i < 3; i++) {
       this.simulateOrientationChange();
@@ -109,14 +110,14 @@ class OrientationTester {
       await this.wait(2000); // 2 secondes entre chaque changement
     }
     
-    console.log('✅ Test 2 terminé');
+    logger.success(' Test 2 terminé');
   }
 
   /**
    * Test de résistance avec de nombreux changements
    */
   async testResistance() {
-    console.log('💪 Test 3: Test de résistance (10 changements aléatoires)');
+    logger.log('💪 Test 3: Test de résistance (10 changements aléatoires)');
     
     for (let i = 0; i < 10; i++) {
       this.simulateOrientationChange();
@@ -128,14 +129,14 @@ class OrientationTester {
     }
     
     await this.wait(2000); // Stabilisation finale
-    console.log('✅ Test 3 terminé');
+    logger.success(' Test 3 terminé');
   }
 
   /**
    * Simule un changement d'orientation
    */
   simulateOrientationChange() {
-    console.log(`🔄 Simulation changement #${this.changeCount + 1}`);
+    logger.info(' Simulation changement #${this.changeCount + 1}');
     
     if (window.orientationManager) {
       // Force un rafraîchissement du gestionnaire centralisé
@@ -153,30 +154,30 @@ class OrientationTester {
     const totalTime = performance.now() - this.startTime;
     
     console.group('📊 RAPPORT DE TEST');
-    console.log(`⏱️ Durée totale: ${(totalTime / 1000).toFixed(2)}s`);
-    console.log(`🔄 Changements simulés: ${this.changeCount}`);
-    console.log(`❌ Erreurs détectées: ${this.errors.length}`);
+    logger.log(`⏱️ Durée totale: ${(totalTime / 1000).toFixed(2)}s`);
+    logger.info(' Changements simulés: ${this.changeCount}');
+    logger.log(`❌ Erreurs détectées: ${this.errors.length}`);
     
     if (this.errors.length > 0) {
       console.group('🚨 Détail des erreurs');
       this.errors.forEach((error, index) => {
-        console.log(`${index + 1}. [${(error.timestamp / 1000).toFixed(2)}s] ${error.type}: ${error.message}`);
+        logger.log(`${index + 1}. [${(error.timestamp / 1000).toFixed(2)}s] ${error.type}: ${error.message}`);
       });
       console.groupEnd();
     }
     
     // Vérifier l'état du gestionnaire d'orientation
     if (window.orientationManager) {
-      console.log('📡 État du gestionnaire:', window.orientationManager.getStats());
+      logger.log('📡 État du gestionnaire:', window.orientationManager.getStats());
     }
     
     // Verdict final
     if (this.errors.length === 0) {
-      console.log('🎉 SUCCÈS: Aucune erreur détectée !');
+      logger.success(' SUCCÈS: Aucune erreur détectée !');
     } else if (this.errors.length < 3) {
-      console.log('⚠️ ATTENTION: Quelques erreurs détectées, à surveiller');
+      logger.log('⚠️ ATTENTION: Quelques erreurs détectées, à surveiller');
     } else {
-      console.log('❌ ÉCHEC: Trop d\'erreurs, des améliorations sont nécessaires');
+      logger.log('❌ ÉCHEC: Trop d\'erreurs, des améliorations sont nécessaires');
     }
     
     console.groupEnd();
@@ -193,7 +194,7 @@ class OrientationTester {
    * Lance un test simple de changement d'orientation
    */
   testSingleChange() {
-    console.log('🔄 Test simple de changement d\'orientation');
+    logger.info(' Test simple de changement d\'orientation');
     this.simulateOrientationChange();
   }
 
@@ -203,13 +204,13 @@ class OrientationTester {
   checkSystemStatus() {
     console.group('🔍 ÉTAT DU SYSTÈME');
     
-    console.log('OrientationManager:', {
+    logger.log('OrientationManager:', {
       available: !!window.orientationManager,
       orientation: window.orientationManager?.getCurrentOrientation(),
       subscribers: window.orientationManager?.getStats()
     });
     
-    console.log('App instance:', {
+    logger.log('App instance:', {
       available: !!window.app,
       managers: window.app ? {
         smoothScroll: !!window.app.smoothScrollManager,
@@ -219,7 +220,7 @@ class OrientationTester {
       } : null
     });
     
-    console.log('Window dimensions:', {
+    logger.log('Window dimensions:', {
       width: window.innerWidth,
       height: window.innerHeight,
       orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
@@ -234,8 +235,8 @@ window.OrientationTester = OrientationTester;
 window.orientationTester = new OrientationTester();
 
 // Instructions pour l'utilisateur
-console.log('🧪 OrientationTester chargé !');
-console.log('📋 Commandes disponibles:');
-console.log('  - orientationTester.runOrientationStressTest() : Lance le test complet');
-console.log('  - orientationTester.testSingleChange() : Test simple');
-console.log('  - orientationTester.checkSystemStatus() : Vérifie l\'état du système');
+logger.log('🧪 OrientationTester chargé !');
+logger.log('📋 Commandes disponibles:');
+logger.log('  - orientationTester.runOrientationStressTest() : Lance le test complet');
+logger.log('  - orientationTester.testSingleChange() : Test simple');
+logger.log('  - orientationTester.checkSystemStatus() : Vérifie l\'état du système');
