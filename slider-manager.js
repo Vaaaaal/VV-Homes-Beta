@@ -96,14 +96,11 @@ export class SliderManager {
       console.log(`🎚️ SliderManager: ${this.currentOrientation} → ${targetOrientation}`);
       this.currentOrientation = targetOrientation;
       
-      // Tue seulement les ScrollTriggers liés à ce gestionnaire
+      // Détruit et recrée les animations avec la nouvelle orientation
       this.destroyScrollTriggers();
-      
-      // Recrée les animations avec la nouvelle orientation
       this.createScrollAnimations();
       this.setupIndicatorBall();
       
-      // Pas de ScrollTrigger.refresh() ici - sera fait de manière centralisée
       console.log('✅ SliderManager mis à jour');
     }
   }
@@ -324,6 +321,88 @@ export class SliderManager {
         },
       }
     );
+  }
+
+  /**
+   * NOUVEAU : Mode dégradé pour les changements d'orientation rapides
+   */
+  setupDegradedMode(orientation) {
+    console.log('🔄 SliderManager: Activation du mode dégradé');
+    
+    // Détruit les animations existantes
+    this.destroyScrollTriggers();
+    
+    // Crée seulement les animations essentielles (sans snap coûteux)
+    this.sliderItems.forEach((item) => {
+      if (orientation === "horizontal") {
+        this.createLightweightHorizontalAnimations(item);
+      } else {
+        this.createLightweightVerticalAnimations(item);
+      }
+    });
+    
+    // Indicateur simplifié
+    this.setupLightweightIndicator();
+  }
+
+  /**
+   * NOUVEAU : Animations horizontales allégées (sans snap)
+   */
+  createLightweightHorizontalAnimations(item) {
+    // Animation de déplacement simplifiée (sans snap coûteux)
+    gsap.fromTo(
+      item,
+      { xPercent: 0, yPercent: 0 },
+      {
+        xPercent: 100,
+        ease: "none",
+        scrollTrigger: {
+          trigger: item,
+          start: "left left",
+          end: "right left",
+          scrub: true,
+          horizontal: true,
+          // PAS DE SNAP en mode dégradé
+        },
+      }
+    );
+  }
+
+  /**
+   * NOUVEAU : Animations verticales allégées
+   */
+  createLightweightVerticalAnimations(item) {
+    // Pas d'animations en mode vertical dégradé pour éviter les conflits
+    // Seul le système d'activation des slides est conservé
+  }
+
+  /**
+   * NOUVEAU : Indicateur allégé
+   */
+  setupLightweightIndicator() {
+    const isHorizontal = this.currentOrientation === "horizontal";
+    
+    this.sliderItems.forEach((item) => {
+      ScrollTrigger.create({
+        trigger: item,
+        start: isHorizontal ? "left 25%" : "top 25%",
+        end: isHorizontal ? "right 25%" : "bottom 25%",
+        horizontal: isHorizontal,
+        toggleClass: {
+          targets: item,
+          className: "is-active-panel",
+        },
+        // PAS d'animations coûteuses en mode dégradé
+        onEnter: () => {
+          this.makeCategoryActive(item);
+          this.updateIndicatorBall();
+        },
+        onEnterBack: () => {
+          this.makeCategoryActive(item);
+          this.updateIndicatorBall();
+        },
+      });
+    });
   }
 
   /**

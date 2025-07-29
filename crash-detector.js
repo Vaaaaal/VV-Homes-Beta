@@ -349,6 +349,43 @@ export class CrashDetector {
   }
   
   /**
+   * NOUVEAU : Vérifie si on est dans une période de spam d'orientation
+   */
+  isOrientationSpamming() {
+    const now = Date.now();
+    const timeSinceLastChange = now - this.lastOrientationChange;
+    
+    // Considérer comme spam si moins de 250ms depuis le dernier changement
+    // OU si plus de 3 changements dans la dernière seconde
+    return timeSinceLastChange < 250 || this.orientationChangeCount > 3;
+  }
+  
+  /**
+   * NOUVEAU : Configure le seuil de détection de spam d'orientation
+   */
+  setOrientationSpamThreshold(milliseconds = 250) {
+    this.THRESHOLDS.ORIENTATION_SPAM_THRESHOLD = milliseconds;
+    console.log(`🎯 Seuil de spam d'orientation défini à ${milliseconds}ms`);
+  }
+  
+  /**
+   * NOUVEAU : Force le mode dégradé pour tous les gestionnaires
+   */
+  forceDegradedMode() {
+    console.warn('🔧 Activation forcée du mode dégradé');
+    
+    // Notifier tous les gestionnaires
+    if (window.orientationManager) {
+      window.orientationManager.notifySubscribers(null, { isRapidChange: true, forced: true });
+    }
+    
+    // Activer le mode d'urgence si disponible
+    if (window.emergencyMode) {
+      window.emergencyMode.activate();
+    }
+  }
+
+  /**
    * Arrête la surveillance
    */
   stop() {

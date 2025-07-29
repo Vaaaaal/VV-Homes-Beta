@@ -14,11 +14,17 @@ export class OrientationManager {
     this.isProcessing = false; // Évite les boucles infinies
     this.debounceTimer = null;
     
-    // Configuration du debounce adaptatif
+    // NOUVEAU : Debounce adaptatif intelligent
     this.DEBOUNCE_DELAYS = {
-      mobile: 500,    // Plus long sur mobile (changement d'orientation)
-      desktop: 250    // Plus court sur desktop (resize normal)
+      mobile: 400,        // Plus long sur mobile (changements d'orientation physiques)
+      desktop: 150,       // Plus court sur desktop (resize de fenêtre)
+      rapid: 600          // Encore plus long si changements rapides détectés
     };
+    
+    // NOUVEAU : Compteur de changements rapides pour debounce dynamique
+    this.recentChanges = [];
+    this.lastChangeTime = 0;
+    this.MAX_CHANGES_PER_SECOND = 3; // Seuil pour considérer comme "rapide"
   }
 
   /**
@@ -71,7 +77,7 @@ export class OrientationManager {
   }
 
   /**
-   * Configure l'écoute des changements avec debounce adaptatif
+   * Configure l'écoute des changements avec debounce adaptatif intelligent
    */
   setupOrientationListener() {
     const handleChange = () => {
@@ -80,9 +86,33 @@ export class OrientationManager {
         return;
       }
 
-      // Détermine le délai selon le contexte
+      // NOUVEAU : Détection intelligente des changements rapides
+      const now = Date.now();
+      
+      // Nettoie les anciens changements (garde seulement la dernière seconde)
+      this.recentChanges = this.recentChanges.filter(time => now - time < 1000);
+      
+      // Ajoute le changement actuel
+      this.recentChanges.push(now);
+      
+      // Détermine le délai selon le contexte ET la fréquence
       const isMobile = window.innerWidth < 992;
-      const delay = this.DEBOUNCE_DELAYS[isMobile ? 'mobile' : 'desktop'];
+      const isRapidChanges = this.recentChanges.length > this.MAX_CHANGES_PER_SECOND;
+      const timeSinceLastChange = now - this.lastChangeTime;
+      
+      let delay;
+      if (isRapidChanges) {
+        delay = this.DEBOUNCE_DELAYS.rapid;
+        console.warn(`🚨 Changements rapides détectés (${this.recentChanges.length}/s) - Debounce ${delay}ms`);
+      } else if (timeSinceLastChange < 200) {
+        // Si le changement précédent était très récent, utilise un délai plus long
+        delay = this.DEBOUNCE_DELAYS.rapid;
+        console.warn(`⚡ Changement très rapide (${timeSinceLastChange}ms) - Debounce ${delay}ms`);
+      } else {
+        delay = this.DEBOUNCE_DELAYS[isMobile ? 'mobile' : 'desktop'];
+      }
+      
+      this.lastChangeTime = now;
       
       // Efface le timer précédent
       if (this.debounceTimer) {
@@ -90,6 +120,7 @@ export class OrientationManager {
       }
 
       // Programme le traitement avec le délai approprié
+      console.log(`⏱️ Debounce orientation: ${delay}ms (${isRapidChanges ? 'rapide' : isMobile ? 'mobile' : 'desktop'})`);
       this.debounceTimer = setTimeout(() => {
         this.processOrientationChange();
       }, delay);
@@ -128,33 +159,7 @@ export class OrientationManager {
 
     try {
       // Notifie tous les abonnés dans l'ordre de priorité
-      for (const [name, subscriber] of this.subscribers) {
-        try {
-          console.log(`📡 Notification ${name}...`);
-          const startTime = performance.now();
-          
-          await subscriber.callback(newOrientation, {
-            fromOrientation: newOrientation === "horizontal" ? "vertical" : "horizontal",
-            timestamp: Date.now(),
-            windowDimensions: {
-              width: window.innerWidth,
-              height: window.innerHeight
-            }
-          });
-          
-          const duration = performance.now() - startTime;
-          subscriber.lastExecution = duration;
-          console.log(`✅ ${name} traité en ${duration.toFixed(2)}ms`);
-          
-          // Pause entre les gestionnaires pour éviter la surcharge
-          if (duration > 100) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-          
-        } catch (error) {
-          console.error(`❌ Erreur lors de la notification ${name}:`, error);
-        }
-      }
+      await this.notifySubscribers(newOrientation);
 
       // Rafraîchissement final coordonné
       console.log('🔄 Rafraîchissement final des ScrollTriggers...');
@@ -168,6 +173,40 @@ export class OrientationManager {
         this.isProcessing = false;
         console.log('🔓 Traitement d\'orientation terminé');
       }, 100);
+    }
+  }
+
+  /**
+   * Notifie tous les subscribers
+   */
+  async notifySubscribers(newOrientation, context = {}) {
+    for (const [name, subscriber] of this.subscribers) {
+      try {
+        console.log(`📡 Notification ${name}...`);
+        const startTime = performance.now();
+        
+        await subscriber.callback(newOrientation, {
+          fromOrientation: newOrientation === "horizontal" ? "vertical" : "horizontal",
+          timestamp: Date.now(),
+          windowDimensions: {
+            width: window.innerWidth,
+            height: window.innerHeight
+          },
+          ...context
+        });
+        
+        const duration = performance.now() - startTime;
+        subscriber.lastExecution = duration;
+        console.log(`✅ ${name} traité en ${duration.toFixed(2)}ms`);
+        
+        // Pause entre les gestionnaires pour éviter la surcharge
+        if (duration > 100) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+      } catch (error) {
+        console.error(`❌ Erreur lors de la notification ${name}:`, error);
+      }
     }
   }
 
