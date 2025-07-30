@@ -152,7 +152,7 @@ export class OrientationManager {
       return;
     }
 
-    logger.orientation(' Changement d'orientation détecté: ${this.currentOrientation} → ${newOrientation}`);
+    logger.orientation(`Changement d'orientation détecté: ${this.currentOrientation} → ${newOrientation}`);
     
     // Marque comme en cours de traitement
     this.isProcessing = true;
