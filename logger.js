@@ -42,7 +42,7 @@ class Logger {
       // Variable d'environnement
       window.VV_PRODUCTION === true ||
       // URL de production
-      window.location.hostname !== 'localhost' ||
+      window.location.hostname !== 'preprod.vv.homes' ||
       // Absence de paramètres de debug
       !window.location.search.includes('debug=1')
     );
