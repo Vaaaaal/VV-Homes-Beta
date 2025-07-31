@@ -1,6 +1,7 @@
 // ==========================================
 // CONTRÔLEUR PRINCIPAL DE L'APPLICATION
 // ==========================================
+import { LoaderManager } from './loader-manager.js';
 import { OrientationManager } from './orientation-manager.js';
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SliderManager } from './slider-manager.js';
@@ -24,6 +25,9 @@ import logger from './logger.js';
  */
 export class VVPlaceApp {
   constructor() {
+    // Gestionnaire de loader (initialisé en premier)
+    this.loaderManager = null;
+    
     // Gestionnaire centralisé d'orientation (initialisé en premier)
     this.orientationManager = null;
     
@@ -45,6 +49,9 @@ export class VVPlaceApp {
   init() {
     logger.loading('VVPlaceApp - Début de l\'initialisation');
     
+    // Reset préventif immédiat dès le début
+    this.emergencyScrollReset();
+    
     // Diagnostic initial
     DebugUtils.logFullDiagnostic();
     DebugUtils.watchIncrementalInit();
@@ -63,7 +70,7 @@ export class VVPlaceApp {
       this.orientationManager = null;
     }
     
-    // 1. Initialise le scroll fluide en premier (base pour tout le reste)
+    // 1. Initialise le scroll fluide (base pour tout le reste)
     // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
     try {
       logger.scroll(' Initialisation du SmoothScrollManager...');
@@ -100,7 +107,18 @@ export class VVPlaceApp {
       logger.debug(' SliderManager ignoré - éléments requis non trouvés');
     }
     
-    // 4. Initialise le gestionnaire de menu si les éléments requis existent
+    // 4. Initialise le gestionnaire de loader (après le slider pour accéder à ses éléments)
+    try {
+      logger.loading('🎬 Initialisation du LoaderManager...');
+      this.loaderManager = new LoaderManager(this.sliderManager, this.smoothScrollManager);
+      this.loaderManager.init();
+      logger.success('✅ LoaderManager initialisé avec succès');
+    } catch (error) {
+      logger.error('❌ Erreur lors de l\'initialisation du LoaderManager:', error);
+      this.loaderManager = null;
+    }
+    
+    // 5. Initialise le gestionnaire de menu si les éléments requis existent
     if (this.checkMenuElements()) {
       try {
         logger.menu(' Initialisation du MenuManager...');
@@ -121,7 +139,7 @@ export class VVPlaceApp {
       logger.debug(' MenuManager ignoré - éléments requis non trouvés');
     }
     
-    // 5. Initialise le gestionnaire de modales si les éléments requis existent
+    // 6. Initialise le gestionnaire de modales si les éléments requis existent
     if (this.checkModalElements()) {
       try {
         logger.modal(' Initialisation du ModalManager...');
@@ -136,7 +154,7 @@ export class VVPlaceApp {
       logger.debug(' ModalManager ignoré - éléments requis non trouvés');
     }
     
-    // 6. Initialise le gestionnaire de texte riche si les éléments requis existent
+    // 7. Initialise le gestionnaire de texte riche si les éléments requis existent
     if (this.checkRichTextElements()) {
       try {
         logger.debug(' Initialisation du RichTextManager...');
@@ -175,6 +193,11 @@ export class VVPlaceApp {
       this.menuManager = null;
     }
     
+    // Détruire le loader avant le slider (ordre inverse de l'initialisation)
+    if (this.loaderManager) {
+      this.loaderManager.destroy();
+    }
+    
     if (this.sliderManager) {
       this.sliderManager.destroy();
     }
@@ -187,7 +210,7 @@ export class VVPlaceApp {
       this.smoothScrollManager.destroy();
     }
     
-    // Détruire le gestionnaire d'orientation en dernier
+    // Détruire le gestionnaire d'orientation
     if (this.orientationManager) {
       this.orientationManager.destroy();
       window.orientationManager = null;
@@ -284,5 +307,38 @@ export class VVPlaceApp {
     } catch (error) {
       logger.error(' Erreur lors de l\'initialisation du menu de fallback:', error);
     }
+  }
+
+  /**
+   * Reset d'urgence du scroll avant toute initialisation
+   * Contourne la restauration automatique du navigateur
+   */
+  emergencyScrollReset() {
+    logger.debug('🚨 VVPlaceApp: Reset d\'urgence du scroll...');
+    
+    // Reset immédiat et multiple UNIQUEMENT de la position
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    
+    // Surveillances répétées pour contrer la restauration du navigateur
+    // SANS bloquer l'overflow - le LoaderManager s'en charge
+    const resetIntervals = [0, 10, 50, 100, 200, 500];
+    
+    resetIntervals.forEach((delay) => {
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.documentElement.scrollLeft = 0;
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+        
+        logger.debug(`🚨 Reset d'urgence ${delay}ms: scroll forcé à 0`);
+      }, delay);
+    });
+    
+    logger.debug('🚨 Reset d\'urgence terminé - LoaderManager prend le relais');
   }
 }

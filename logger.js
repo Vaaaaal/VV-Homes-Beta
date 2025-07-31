@@ -42,7 +42,7 @@ class Logger {
       // Variable d'environnement
       window.VV_PRODUCTION === true ||
       // URL de production
-      window.location.hostname !== 'preprod.vv.homes' ||
+      window.location.hostname !== 'vv-homes-beta.webflow.io' ||
       // Absence de paramètres de debug
       !window.location.search.includes('debug=1')
     );

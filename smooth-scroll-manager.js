@@ -62,6 +62,64 @@ export class SmoothScrollManager {
       orientation: orientation,
       ...this.config.lenisOptions // Permet d'ajouter d'autres options Lenis
     });
+    
+    // Reset agressif et persistant
+    this.forceScrollReset();
+  }
+
+  /**
+   * Force un reset agressif et persistant de la position de scroll
+   * Gère la restauration automatique du navigateur lors des refresh
+   */
+  forceScrollReset() {
+    // Reset immédiat multiple
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    
+    // Reset de Lenis si disponible
+    if (this.lenis) {
+      this.lenis.scrollTo(0, { immediate: true });
+    }
+    
+    // Surveillance continue pour contrer la restauration du navigateur
+    // Le navigateur peut restaurer la position après quelques millisecondes
+    const resetIntervals = [10, 50, 100, 200, 500, 1000];
+    
+    resetIntervals.forEach(delay => {
+      setTimeout(() => {
+        if (!this.isScrollResetComplete()) {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.documentElement.scrollLeft = 0;
+          document.body.scrollTop = 0;
+          document.body.scrollLeft = 0;
+          
+          if (this.lenis) {
+            this.lenis.scrollTo(0, { immediate: true });
+          }
+          
+          logger.debug(`🔄 SmoothScrollManager: Reset forcé après ${delay}ms`);
+        }
+      }, delay);
+    });
+    
+    console.log('🔄 SmoothScrollManager: Reset agressif initié');
+  }
+
+  /**
+   * Vérifie si le reset de scroll est complètement effectué
+   * @returns {boolean} true si la position est à 0
+   */
+  isScrollResetComplete() {
+    return window.scrollY === 0 && 
+           window.scrollX === 0 && 
+           document.documentElement.scrollTop === 0 && 
+           document.documentElement.scrollLeft === 0 &&
+           document.body.scrollTop === 0 &&
+           document.body.scrollLeft === 0;
   }
 
   /**
@@ -210,6 +268,9 @@ export class SmoothScrollManager {
    * Détruit le gestionnaire de scroll et nettoie tous les event listeners
    */
   destroy() {
+    // Désactive le watchdog de reset
+    this.disableResetWatchdog();
+    
     // Se désabonner du gestionnaire centralisé d'orientation
     if (window.orientationManager) {
       window.orientationManager.unsubscribe('SmoothScrollManager');
@@ -271,5 +332,53 @@ export class SmoothScrollManager {
    */
   getOrientation() {
     return this.lenis ? this.lenis.options.orientation : null;
+  }
+
+  /**
+   * Méthode publique pour forcer un reset complet
+   * Peut être appelée par d'autres managers (ex: LoaderManager)
+   */
+  resetToZero() {
+    this.forceScrollReset();
+  }
+
+  /**
+   * Active la surveillance continue du reset
+   * Utile pendant les animations de loader
+   */
+  enableResetWatchdog() {
+    if (this.resetWatchdogId) {
+      clearInterval(this.resetWatchdogId);
+    }
+
+    // Vérifie toutes les 100ms pendant 3 secondes
+    let checkCount = 0;
+    const maxChecks = 30; // 3 secondes / 100ms
+
+    this.resetWatchdogId = setInterval(() => {
+      checkCount++;
+      
+      if (!this.isScrollResetComplete()) {
+        this.forceScrollReset();
+        logger.debug('🔄 SmoothScrollManager: Watchdog - Position corrigée');
+      }
+      
+      if (checkCount >= maxChecks) {
+        this.disableResetWatchdog();
+      }
+    }, 100);
+    
+    logger.debug('🔄 SmoothScrollManager: Watchdog activé');
+  }
+
+  /**
+   * Désactive la surveillance continue du reset
+   */
+  disableResetWatchdog() {
+    if (this.resetWatchdogId) {
+      clearInterval(this.resetWatchdogId);
+      this.resetWatchdogId = null;
+      logger.debug('🔄 SmoothScrollManager: Watchdog désactivé');
+    }
   }
 }

@@ -28,6 +28,9 @@ export class SliderManager {
     this.indicatorBall = document.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
     this.indicatorTrack = document.querySelector(CONFIG.SELECTORS.INDICATOR_TRACK);
     
+    // Reset immédiat du scroll dès la création de l'instance
+    this.immediateReset();
+    
     // Détection de l'orientation actuelle
     this.currentOrientation = this.getCurrentOrientation();
     
@@ -107,19 +110,112 @@ export class SliderManager {
   }
 
   /**
+   * Reset immédiat et agressif du scroll dès la création de l'instance
+   * Se déclenche avant toute autre initialisation
+   */
+  immediateReset() {
+    logger.debug('🔄 SliderManager: Reset immédiat du scroll...');
+    
+    // Reset agressif de window scroll
+    this.forceWindowScrollReset();
+    
+    // Reset ScrollTrigger si disponible
+    if (window.ScrollTrigger) {
+      ScrollTrigger.refresh();
+      ScrollTrigger.update();
+      logger.debug('🔄 ScrollTrigger rafraîchi');
+    }
+    
+    // Reset tous les containers potentiels
+    const containers = [
+      CONFIG.SELECTORS.SLIDER_LIST,
+      '.slider-panel_list',
+      '.main-wrapper',
+      '.slider-panel_wrap'
+    ];
+    
+    containers.forEach(selector => {
+      const container = document.querySelector(selector);
+      if (container) {
+        container.scrollLeft = 0;
+        container.scrollTop = 0;
+        logger.debug(`🔄 Container ${selector} reset`);
+      }
+    });
+    
+    // Reset GSAP de tous les sliderItems immédiatement
+    this.sliderItems.forEach((item) => {
+      gsap.set(item, { 
+        xPercent: 0, 
+        yPercent: 0, 
+        x: 0, 
+        y: 0,
+        clearProps: "transform" 
+      });
+    });
+    
+    logger.debug('✅ SliderManager: Reset immédiat terminé');
+  }
+
+  /**
+   * Force un reset agressif de la position de scroll window
+   * Similaire à SmoothScrollManager mais pour le SliderManager
+   */
+  forceWindowScrollReset() {
+    // Reset immédiat multiple
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    
+    // Surveillance pour contrer la restauration du navigateur
+    const resetIntervals = [10, 50, 100, 200];
+    
+    resetIntervals.forEach(delay => {
+      setTimeout(() => {
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.documentElement.scrollLeft = 0;
+          document.body.scrollTop = 0;
+          document.body.scrollLeft = 0;
+          logger.debug(`🔄 SliderManager: Reset forcé après ${delay}ms`);
+        }
+      }, delay);
+    });
+  }
+
+  /**
    * Remet le slider à sa position initiale (première slide)
    * Utile lors du chargement de la page pour éviter que le slider soit déjà entamé
+   * @param {boolean} forceFullReset - Si true, force le scroll à (0,0) pour tous les axes
    */
-  resetSliderToStart() {
+  resetSliderToStart(forceFullReset = false) {
     // Trouve le container principal du slider
     const sliderContainer = document.querySelector(CONFIG.SELECTORS.SLIDER_LIST);
-    if (!sliderContainer) return;
+    // Fallback vers slider-panel_wrap si slider-panel_list n'existe pas
+    const sliderContainerFallback = document.querySelector('.main-wrapper .slider-panel_wrap');
+    const containerToReset = sliderContainer || sliderContainerFallback;
+    
+    if (!containerToReset) {
+      logger.warn('⚠️ Aucun container de slider trouvé pour le reset');
+      return;
+    }
 
     // Remet le scroll horizontal à 0 (début)
-    sliderContainer.scrollLeft = 0;
+    containerToReset.scrollLeft = 0;
 
-    // Remet également window.scrollX à 0 pour être sûr
-    window.scrollTo(0, window.scrollY);
+    if (forceFullReset) {
+      // Force le scroll à (0,0) pour tous les axes et orientations
+      window.scrollTo(0, 0);
+      // Force aussi le scroll vertical du container si nécessaire
+      containerToReset.scrollTop = 0;
+      logger.debug('🔄 Reset complet du scroll à (0,0)');
+    } else {
+      // Remet seulement window.scrollX à 0 (comportement original)
+      window.scrollTo(0, window.scrollY);
+    }
 
     // Active la première slide et désactive toutes les autres
     this.sliderItems.forEach((item, index) => {
@@ -169,6 +265,29 @@ export class SliderManager {
       const orderB = parseInt(b.dataset.sliderOrder);
       return orderA - orderB;
     });
+  }
+
+  /**
+   * Récupère un nombre spécifique d'items triés par ordre
+   * @param {number} count - Nombre d'items à récupérer
+   * @return {Array} - Liste des premiers items triés
+   */
+  getFirstItems(count) {
+    if (!count || count <= 0) {
+      logger.warn('⚠️ Nombre d\'items invalide:', count);
+      return [];
+    }
+
+    // S'assurer que les items sont triés avant de les retourner
+    const sortedItems = this.sortItemsByOrder([...this.sliderItems]);
+    
+    // Limiter le nombre d'items au maximum disponible
+    const maxItems = Math.min(count, sortedItems.length);
+    const selectedItems = sortedItems.slice(0, maxItems);
+    
+    logger.debug(`📋 Récupération de ${selectedItems.length}/${sortedItems.length} items triés`);
+    
+    return selectedItems;
   }
 
   /**
