@@ -25,7 +25,8 @@ export const CONFIG = {
     INDICATOR_BALL: ".indicators_scroller_line_ball",                   // Boule de progression sur la ligne d'indicateur
     INDICATOR_TRACK: ".indicators_scroller_line_wrap",                  // Ligne de progression de l'indicateur
     MENU_WRAP: ".menu_wrap",                                            // Container principal du menu
-    MENU_EXIT: ".menu_exit",                                            // Bouton de fermeture des panels
+    MENU_EXIT: ".menu_exit:not(.is-all)",                               // Bouton de fermeture des panels individuels du menu
+    MENU_EXIT_ALL: ".menu_exit.is-all",                                 // Bouton de fermeture de tous
     MENU_BUTTON: "#menu-btn",                                           // Bouton d'ouverture du menu
     MENU_FIRST_PANEL: ".menu_panel.is-col-1",                           // Premier panneau du menu
     MENU_FIRST_PANEL_ITEM: ".menu_panel.is-col-1 .menu_panel_item",     // Items du premier panneau

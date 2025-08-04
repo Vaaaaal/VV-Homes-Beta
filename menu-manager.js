@@ -23,6 +23,7 @@ export class MenuManager {
     this.menuPanelItems = this.menu?.querySelectorAll(CONFIG.SELECTORS.MENU_PANEL_ITEMS);
     this.menuButton = document.querySelector(CONFIG.SELECTORS.MENU_BUTTON);
     this.menuExit = document.querySelectorAll(CONFIG.SELECTORS.MENU_EXIT);
+    this.menuExitAll = document.querySelectorAll(CONFIG.SELECTORS.MENU_EXIT_ALL);
     this.menuOverlay = this.menu?.querySelector('.menu_overlay');
     
     // Boutons CMS dynamiques
@@ -377,6 +378,13 @@ export class MenuManager {
       });
     });
 
+    // Fermeture par bouton exit all (ferme tous les panels)
+    this.menuExitAll.forEach(exitAllBtn => {
+      exitAllBtn.addEventListener('click', () => {
+        this.closeAllPanels();
+      });
+    });
+
     // Événements pour les liens de menu avec data-menu-link
     this.initMenuLinkEvents();
     
@@ -483,6 +491,9 @@ export class MenuManager {
         }
       }
     }
+    
+    // Mettre à jour la visibilité des boutons "exit all" après navigation
+    this.updateExitAllButtonsVisibility();
   }
 
   /**
@@ -793,6 +804,9 @@ export class MenuManager {
     
     // Mettre à jour les états actifs
     this.updateActiveStatesOnOpen(panelName);
+    
+    // Mettre à jour la visibilité des boutons "exit all"
+    this.updateExitAllButtonsVisibility();
   }
 
   /**
@@ -822,6 +836,54 @@ export class MenuManager {
     // Éviter les doublons consécutifs
     if (this.navigationHistory[this.navigationHistory.length - 1] !== panelName) {
       this.navigationHistory.push(panelName);
+    }
+  }
+
+  /**
+   * Ferme tous les panels ouverts et ferme complètement le menu
+   * Utilise la méthode closeMenu() qui gère déjà tout proprement
+   */
+  closeAllPanels() {
+    // Utiliser la méthode existante qui ferme tout le menu proprement
+    this.closeMenu();
+  }
+
+  /**
+   * Met à jour la visibilité des boutons "exit all" 
+   * Seul le dernier panel ouvert doit afficher son bouton "exit all"
+   */
+  updateExitAllButtonsVisibility() {
+    // Cacher tous les boutons "exit all" d'abord
+    this.menuExitAll.forEach(exitAllBtn => {
+      gsap.set(exitAllBtn, {
+        opacity: 0,
+        duration: 0.6,
+        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+        onComplete: () => {
+          exitAllBtn.style.display = 'none';
+        }
+      });
+    });
+
+    // Si aucun panel n'est ouvert, ne pas afficher de bouton
+    if (this.navigationHistory.length === 0) {
+      return;
+    }
+
+    // Afficher le bouton "exit all" uniquement sur le dernier panel ouvert
+    const lastPanelName = this.navigationHistory[this.navigationHistory.length - 1];
+    const lastPanel = document.querySelector(`.menu_panel_item[data-name="${lastPanelName}"]`);
+    
+    if (lastPanel) {
+      const exitAllBtn = lastPanel.querySelector(CONFIG.SELECTORS.MENU_EXIT_ALL);
+      if (exitAllBtn) {
+        exitAllBtn.style.display = 'block';
+        gsap.set(exitAllBtn, {
+          opacity: 1,
+          duration: 0.6,
+          ease: CONFIG.ANIMATION.EASE.POWER2.OUT
+        });
+      }
     }
   }
 
@@ -864,7 +926,13 @@ export class MenuManager {
     const reversedPanels = [...panelElements].reverse();
 
     // Animer séquentiellement - chaque panel attend que le précédent soit terminé
-    this.animatePanelsSequentially(reversedPanels);
+    this.animatePanelsSequentially(reversedPanels, () => {
+      // Mettre à jour la visibilité des boutons après fermeture
+      this.updateExitAllButtonsVisibility();
+    });
+
+    // Mettre à jour immédiatement la visibilité des boutons
+    this.updateExitAllButtonsVisibility();
 
     return true;
   }

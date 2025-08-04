@@ -197,16 +197,14 @@ export class ModalManager {
           const folderContentElement = gsap.utils.toArray(content.querySelectorAll('.menu-preview_wrap'));
           // Récupération des swipers initié dans swiper-manager
           const swiperMain = this.swiperManager?.get('modal-previews-1');
-          const swiperSecondary = this.swiperManager?.get('modal-previews-2');
 
-          if (this.swiperManager.has('modal-previews-1') && this.swiperManager.has('modal-previews-2')) {
+          if (this.swiperManager.has('modal-previews-1')) {
             // Prépare les slides
             const slides = folderContentElement.map(item => item);
             
             // Met à jour les swipers avec le nouveau contenu
             // Détruit d'abord les slides existants
             swiperMain.removeAllSlides();
-            swiperSecondary.removeAllSlides();
             
             // Ajoute les nouveaux slides
             slides.forEach(slideContent => {
@@ -215,36 +213,33 @@ export class ModalManager {
               slideContentCopy.querySelector(".menu-preview_title").classList.remove("menu-preview_title");
               slideContentCopy.querySelector(".modal-preview_title").classList.remove("text-size-xsmall");
 
-              slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
-              slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.remove("menu-preview_cover_wrap");
-              
-              slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
-              slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
-
-              // Traite le contenu pour retirer media_source pour le deuxième swiper
               const mediaSource = slideContentCopy.querySelector(".media_source");
               const mediaSourceCopy = mediaSource.cloneNode(true);
               mediaSourceCopy.classList.add("is-preview-modal");
               slideContentCopy.prepend(mediaSourceCopy);
               mediaSource.remove();
 
-              swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
+              // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
+              const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").querySelector("img").cloneNode(true);
+              image.classList.add("modal-preview_cover");
+              slideContentCopy.querySelector(".menu-preview_cover_wrap").remove();
+              slideContentCopy.prepend(image);
               
-              // Traite le contenu pour retirer menu-preview_title
-              slideContentCopy.querySelector(".modal-preview_title").remove();
-              // Traite le contenu pour ajouter is-thumb
-              slideContentCopy.querySelector(".modal-preview_cover").classList.add("is-thumb");
-              
-              if (mediaSourceCopy) {
-                mediaSourceCopy.remove();
-              }
+              // slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
+              // slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
 
-              swiperSecondary.appendSlide(`<div class="swiper-slide is-preview">${slideContentCopy.querySelector(".modal-preview_cover_wrap").innerHTML}</div>`);
+              // Traite le contenu pour retirer media_source pour le deuxième swiper
+              // const mediaSource = slideContentCopy.querySelector(".media_source");
+              // const mediaSourceCopy = mediaSource.cloneNode(true);
+              // mediaSourceCopy.classList.add("is-preview-modal");
+              // slideContentCopy.prepend(mediaSourceCopy);
+              // mediaSource.remove();
+
+              swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
             });
             
             // Met à jour les swipers
             swiperMain.update();
-            swiperSecondary.update();
           }
         }
       }
@@ -298,23 +293,19 @@ export class ModalManager {
 
         // Récupération des swipers initié dans swiper-manager
         const swiperMain = this.swiperManager?.get('modal-previews-1');
-        const swiperSecondary = this.swiperManager?.get('modal-previews-2');
 
-        if (this.swiperManager.has('modal-previews-1') && this.swiperManager.has('modal-previews-2')) {
+        if (this.swiperManager.has('modal-previews-1')) {
           // Met à jour les swipers avec un contenu loader
           // Détruit d'abord les slides existants
           swiperMain.removeAllSlides();
-          swiperSecondary.removeAllSlides();
           
           // Ajoute les nouveaux slides
           for (let i = 0; i < 5; i++) {
             swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
-            swiperSecondary.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
           };
           
           // Met à jour les swipers
           swiperMain.update();
-          swiperSecondary.update();
         }
       }
     }, "-=0.05"); // Légèrement en même temps que l'opacité

@@ -132,51 +132,23 @@ export class SwiperManager {
    */
   createModalPreviewsSwiper() {
     const swiperElementOne = document.querySelector('.swiper.is-previews-1');
-    const swiperElementTwo = document.querySelector('.swiper.is-previews-2');
 
-    if (!swiperElementOne || !swiperElementTwo) {
+    if (!swiperElementOne) {
       return null;
     }
 
     const idOne = 'modal-previews-1';
-    const idTwo = 'modal-previews-2';
-
-    // Crée le swiper secondaire pour les previews 2
-    const swiperSecondary = new Swiper(swiperElementTwo, {
-			direction: 'horizontal',
-      slidesPerView: 2,
-      spaceBetween: 16,
-      breakpoints: {
-        // when window width is >= 769px
-        769: {
-          slidesPerView: 3,
-          spaceBetween: 20,
-        },
-        // when window width is >= 992px
-        992: {
-          slidesPerView: 4,
-          spaceBetween: 24,
-          direction: 'vertical',
-        }
-      },
-      mousewheel: true,
-      loop: true,
-      // watchSlidesProgress: true,
-    });
 
     // Crée le swiper principal pour les previews 1
     const swiperMain = new Swiper(swiperElementOne, {
       slidesPerView: 1,
       spaceBetween: 10,
       loop: true,
-			// autoHeight: true,
-      navigation: {
-        nextEl: swiperElementOne.querySelector('.swiper-button-next'),
-        prevEl: swiperElementOne.querySelector('.swiper-button-prev'),
+      direction: 'vertical',
+      mousewheel: {
+        enabled: true,
       },
-      thumbs: {
-        swiper: swiperSecondary,
-      },
+			autoHeight: true,
 			on: {
 				slideChange: (element) => {
 					const count = element.slides.length;
@@ -192,9 +164,8 @@ export class SwiperManager {
 			},
     });
     
-    this.store(idTwo, swiperSecondary);
     this.store(idOne, swiperMain);
 
-    return swiperElementOne && swiperElementTwo;
+    return swiperElementOne;
   }
 }
