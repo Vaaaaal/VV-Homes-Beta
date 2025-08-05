@@ -216,7 +216,7 @@ export class ModalManager {
               const mediaSource = slideContentCopy.querySelector(".media_source");
               const mediaSourceCopy = mediaSource.cloneNode(true);
               mediaSourceCopy.classList.add("is-preview-modal");
-              slideContentCopy.prepend(mediaSourceCopy);
+              slideContentCopy.append(mediaSourceCopy);
               mediaSource.remove();
 
               // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");

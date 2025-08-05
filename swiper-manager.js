@@ -145,10 +145,10 @@ export class SwiperManager {
       spaceBetween: 10,
       loop: true,
       direction: 'vertical',
+      // autoHeight: true,
       mousewheel: {
         enabled: true,
       },
-			autoHeight: true,
 			on: {
 				slideChange: (element) => {
 					const count = element.slides.length;
