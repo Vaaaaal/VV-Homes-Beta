@@ -174,6 +174,15 @@ export class LoaderManager {
 			logger.debug('🔄 LoaderManager - Ajout de l\'évènement de chargement');
 			this.startLoading();
 		});
+		this.loaderElement.addEventListener('touch', () => {
+			if (this.isLoading) {
+				logger.debug('🔄 LoaderManager - Chargement déjà en cours, ignore l\'évènement');
+				return;
+			}
+
+			logger.debug('🔄 LoaderManager - Ajout de l\'évènement de chargement');
+			this.startLoading();
+		});
 	}
 
 	/**

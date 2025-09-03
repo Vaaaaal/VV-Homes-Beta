@@ -618,8 +618,8 @@ export class MenuManager {
         this.animatePanelsSequentially(reversedPanels, () => {
           // Callback exécuté après que tous les panels soient fermés
           this.closeMenuFinal();
-        });
-        
+        }, 0.2);
+
         // Réinitialiser l'historique et les états actifs immédiatement
         this.clearNavigationHistory();
         this.clearAllActiveStates();
@@ -942,7 +942,7 @@ export class MenuManager {
    * @param {HTMLElement[]} panels - Panels à animer
    * @param {Function} onComplete - Callback optionnel
    */
-  animatePanelsSequentially(panels, onComplete = null) {
+  animatePanelsSequentially(panels, onComplete = null, duration) {
     if (panels.length === 0) {
       if (onComplete) onComplete();
       return;
@@ -959,7 +959,7 @@ export class MenuManager {
       const panel = panels[index];
       
       gsap.to(panel, {
-        duration: CONFIG.ANIMATION.DURATION,
+        duration: duration || CONFIG.ANIMATION.DURATION,
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
         onComplete: () => {

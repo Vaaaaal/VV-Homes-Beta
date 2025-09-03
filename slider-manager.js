@@ -23,6 +23,7 @@ export class SliderManager {
     
     // Récupère la dernière slide (slide de fin)
     this.lastSlide = document.querySelector(".slider-panel_item.is-last");
+    this.firstSlide = document.querySelector(".slider-panel_item.is-first");
     
     // Éléments de l'indicateur de progression
     this.indicatorBall = document.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
@@ -302,9 +303,9 @@ export class SliderManager {
     // Récupère la catégorie de la slide active
     const activeCategory = activePanel.dataset.sliderCategory;
     
-    // Trouve toutes les slides de cette catégorie (sauf la dernière)
+    // Trouve toutes les slides de cette catégorie (sauf la dernière et la première)
     const panelsInCategory = Array.from(document.querySelectorAll('.slider-panel_item'))
-      .filter(item => item.dataset.sliderCategory === activeCategory && !item.classList.contains('is-last'));
+      .filter(item => item.dataset.sliderCategory === activeCategory && !item.classList.contains('is-last') && !item.classList.contains('is-first'));
 
     // Calcule la position de la slide active dans sa catégorie
     const activeIndex = panelsInCategory.indexOf(activePanel);
@@ -335,6 +336,7 @@ export class SliderManager {
     sorted.forEach((item) => sliderList.appendChild(item));
     // Ajoute la slide de fin en dernier
     sliderList.appendChild(this.lastSlide);
+    sliderList.prepend(this.firstSlide);
   }
 
   /**
