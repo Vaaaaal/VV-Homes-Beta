@@ -360,7 +360,7 @@ export class MenuManager {
     if (this.menuOverlay) {
       this.menuOverlay.addEventListener('click', (e) => {
         if (e.target === this.menuOverlay) {
-          this.closeMenu();
+          this.closeAllPanels();
         }
       });
     }
@@ -598,7 +598,7 @@ export class MenuManager {
   /**
    * Ferme le menu principal et réinitialise l'historique
    */
-  closeMenu() {
+  closeMenu(closeAll = false) {
     if (!this.menu.classList.contains("is-active")) {
       return;
     }
@@ -614,11 +614,23 @@ export class MenuManager {
         // Inverser l'ordre pour commencer par le dernier panel (le plus profond)
         const reversedPanels = [...allOpenPanels].reverse();
 
-        // Animer séquentiellement tous les panels, puis fermer le menu
-        this.animatePanelsSequentially(reversedPanels, () => {
-          // Callback exécuté après que tous les panels soient fermés
-          this.closeMenuFinal();
-        }, 0.2);
+        // Si closeall est true, tout fermer tout d'un coup, sans animation (même le premier panel) et l'overlay
+        if (closeAll) {
+          reversedPanels.forEach(panel => {
+            panel.style.display = "none";
+          });
+          this.closeMenuFinal(true);
+          if (this.menuOverlay) {
+            this.menuOverlay.style.display = "none";
+          }
+          // Ré-initialiser tous les éléments modifiés au dessus (overlay, panels) à leur état de départ
+          this.resetPanelStates(reversedPanels);
+        } else {
+          this.animatePanelsSequentially(reversedPanels, () => {
+            // Callback exécuté après que tous les panels soient fermés
+            this.closeMenuFinal();
+          }, 0.2);
+        }
 
         // Réinitialiser l'historique et les états actifs immédiatement
         this.clearNavigationHistory();
@@ -634,30 +646,35 @@ export class MenuManager {
   /**
    * Ferme définitivement le menu après fermeture des panels
    */
-  closeMenuFinal() {
-    // Animation de sortie du premier panel
-    gsap.to(this.menuFirstPanelItem, {
-      duration: CONFIG.ANIMATION.DURATION,
-      ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-      xPercent: -101,
-      onComplete: () => {
-        // Désactive le menu et ses éléments
-        this.menu.classList.remove("is-active");
-        this.menuFirstPanel.classList.remove("is-active");
-        if (this.menuOverlay) {
-          this.menuOverlay.classList.remove("is-active");
-        }
-        
-        // Réactive le scroll principal
-        if (this.smoothScrollManager) {
-          this.smoothScrollManager.enableScroll();
-        }
-        const panelMiddle = this.menuFirstPanelItem.querySelector('.menu_panel_item_middle');
-          if (panelMiddle) {
-            panelMiddle.scrollTop = 0; // Réinitialiser le scroll du panel
+  closeMenuFinal(closeAll = false) {
+    if (closeAll) {
+      // Fermer le premier panel sans animation
+      this.menuFirstPanelItem.style.display = "none";
+    } else {
+      // Animation de sortie du premier panel
+      gsap.to(this.menuFirstPanelItem, {
+        duration: CONFIG.ANIMATION.DURATION,
+        ease: CONFIG.ANIMATION.EASE.POWER2.IN,
+        xPercent: -101,
+        onComplete: () => {
+          // Désactive le menu et ses éléments
+          this.menu.classList.remove("is-active");
+          this.menuFirstPanel.classList.remove("is-active");
+          if (this.menuOverlay) {
+            this.menuOverlay.classList.remove("is-active");
           }
-      }
-    });
+          
+          // Réactive le scroll principal
+          if (this.smoothScrollManager) {
+            this.smoothScrollManager.enableScroll();
+          }
+          const panelMiddle = this.menuFirstPanelItem.querySelector('.menu_panel_item_middle');
+            if (panelMiddle) {
+              panelMiddle.scrollTop = 0; // Réinitialiser le scroll du panel
+            }
+        }
+      });
+    }
   }
 
   /**
@@ -845,7 +862,7 @@ export class MenuManager {
    */
   closeAllPanels() {
     // Utiliser la méthode existante qui ferme tout le menu proprement
-    this.closeMenu();
+    this.closeMenu(true);
   }
 
   /**
@@ -982,6 +999,55 @@ export class MenuManager {
    */
   clearNavigationHistory() {
     this.navigationHistory = [];
+  }
+
+  /**
+   * Remet tous les panels et l'overlay à leur état initial
+   * @param {HTMLElement[]} panels - Les panels à réinitialiser
+   */
+  resetPanelStates(panels) {
+    // Réinitialiser l'overlay
+    if (this.menuOverlay) {
+      this.menuOverlay.style.display = '';
+      this.menuOverlay.classList.remove("is-active");
+    }
+
+    // Réinitialiser le premier panel
+    if (this.menuFirstPanelItem) {
+      this.menuFirstPanelItem.style.display = '';
+      gsap.set(this.menuFirstPanelItem, {
+        xPercent: -101,
+        opacity: 1,
+        pointerEvents: "auto"
+      });
+    }
+
+    // Réinitialiser tous les panels passés en paramètre
+    panels.forEach(panel => {
+      if (panel) {
+        panel.style.display = '';
+        gsap.set(panel, {
+          xPercent: -101,
+          opacity: 1,
+          pointerEvents: "auto"
+        });
+        
+        // Réinitialiser le scroll du panel
+        const panelMiddle = panel.querySelector('.menu_panel_item_middle');
+        if (panelMiddle) {
+          panelMiddle.scrollTop = 0;
+        }
+      }
+    });
+
+    // Désactiver le menu et ses éléments
+    this.menu.classList.remove("is-active");
+    this.menuFirstPanel.classList.remove("is-active");
+    
+    // Réactiver le scroll principal
+    if (this.smoothScrollManager) {
+      this.smoothScrollManager.enableScroll();
+    }
   }
 
   // ==========================================
