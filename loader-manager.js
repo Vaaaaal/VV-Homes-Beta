@@ -20,11 +20,10 @@ export class LoaderManager {
     // Références aux éléments DOM du loader
     this.loaderElement = document.querySelector('.loader_wrap');
     this.loaderContentOne = this.loaderElement.querySelector('.loader_content_wrap .loader_one');
-    this.loaderContentTwo = this.loaderElement.querySelector('.loader_content_wrap .loader_two');
     this.loaderContentThree = this.loaderElement.querySelector('.loader_content_wrap .loader_images');
-	this.sliderItems = [];
-	this.navbar = document.querySelector('.nav_wrap');
-	this.mainList = document.querySelector('.main-wrapper .slider-panel_wrap');
+    this.sliderItems = [];
+    this.navbar = document.querySelector('.nav_wrap');
+    this.mainList = document.querySelector('.main-wrapper .slider-panel_wrap');
 
     // État du loader
     this.isLoading = false;
@@ -72,6 +71,9 @@ export class LoaderManager {
 				// position: 'relative', // Utilise relative au lieu d'absolute
 			});
 		}
+		
+		// Bloquer le scroll Lenis sur mainList dès l'initialisation
+		this.mainList.setAttribute('data-lenis-prevent', 'true');
 		
 		gsap.set(this.mainList.querySelectorAll('.slider-panel_infos'), {
 			opacity: 0,
@@ -134,7 +136,7 @@ export class LoaderManager {
 		}
 		// this.loaderElement.classList.add('is-active');
 
-		if(!this.loaderContentOne || !this.loaderContentTwo || !this.loaderContentThree) {
+		if(!this.loaderContentOne || !this.loaderContentThree) {
 			logger.error('❌ Contenu de loader non trouvé');
 			return;
 		}
@@ -340,41 +342,16 @@ export class LoaderManager {
 	createHorizontalAnimation() {
 		const tl = gsap.timeline();
 
-		tl.to(this.loaderContentOne, {
-			opacity: 0,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 1 terminée');
-				this.loaderContentOne.classList.remove('is-active');
-				this.loaderContentTwo.classList.add('is-active');
-			}
-		}).to(this.loaderContentTwo, {
+		tl.set(this.loaderContentThree, {
 			opacity: 1,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 2 terminée');
-				this.loaderContentThree.classList.add('is-active');
+      onComplete: () => {
+        this.loaderContentThree.classList.add('is-active');
 			}
-		})
-		/*
-		.to(this.loaderContentTwo, {
-			opacity: 0,
-			delay: 1,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 2 terminée');
-				this.loaderContentTwo.classList.remove('is-active');
-				this.loaderContentThree.classList.add('is-active');
-			}
-		})
-		*/
-		.set(this.loaderContentThree, {
-			opacity: 1,
 		}).set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
 			left: '100%',
 		}).to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
 			left: 0,
-			delay: 1.5,
+			// delay: 1.5,
 			// duration: 1,
 			duration: function (index, target, list) {
 				console.log((index + 1) / list.length + 1);
@@ -405,6 +382,8 @@ export class LoaderManager {
 					ScrollTrigger.refresh();
 					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
 				}
+
+        this.resetLoaderImagePositions();
 			}
 		}, "-=1.8")
 		.to(this.navbar, {
@@ -418,17 +397,20 @@ export class LoaderManager {
 				this.loaderContentThree.classList.add('is-active');
 				this.loaderElement.classList.remove('is-active');
 				this.isLoading = false;
-				this.loaderElement.remove();
+				// this.loaderElement.remove();
 			}
 		}, "-=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
 			opacity: 1,
 			y: 0,
 			duration: 0.6,
-			stagger: 0.15,
 			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
 			onComplete: () => {
 				logger.debug('✅ Animation de chargement 4 terminée');
 				gsap.set(this.mainList, { clearProps: "all" });
+				
+				// Débloquer le scroll Lenis sur mainList
+				this.unlockMainListScroll();
+				
 				logger.success('✅ Chargement terminé');
 			}
 		}, "<=0.2);");;
@@ -446,18 +428,6 @@ export class LoaderManager {
 			onComplete: () => {
 				logger.debug('✅ Animation de chargement 1 terminée');
 				this.loaderContentOne.classList.remove('is-active');
-				this.loaderContentTwo.classList.add('is-active');
-			}
-		}).to(this.loaderContentTwo, {
-			opacity: 1,
-			duration: 1,
-		}).to(this.loaderContentTwo, {
-			opacity: 0,
-			delay: 1,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 2 terminée');
-				this.loaderContentTwo.classList.remove('is-active');
 				this.loaderContentThree.classList.add('is-active');
 			}
 		})
@@ -491,6 +461,8 @@ export class LoaderManager {
 					this.restoreScrollCapability();
 					
 					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
+
+          this.resetLoaderImagePositions();
 				}
 			}
 		}, "<=0.5")
@@ -503,9 +475,11 @@ export class LoaderManager {
 			opacity: 1,
 			y: 0,
 			duration: 0.6,
-			stagger: 0.15,
 			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
 			onComplete: () => {
+				// Débloquer le scroll Lenis sur mainList
+				this.unlockMainListScroll();
+				
 				logger.success('✅ Chargement terminé');
 			}
 		}, "<=0.2);");
@@ -583,6 +557,384 @@ export class LoaderManager {
 	// 		}
 	// 	}, "<=0.2);");
 	// }
+
+  /**
+   * Relance l'animation du loaderContentThree (stacking des images)
+   * Méthode publique appelable depuis le menu
+   */
+  replayLoaderAnimation() {
+    logger.debug('🔄 LoaderManager - Relance de l\'animation loaderContentThree');
+    if (!this.isInitialized) {
+      logger.warn('⚠️ LoaderManager non initialisé, impossible de relancer l\'animation');
+      return;
+    }
+
+    if (this.isLoading) {
+      logger.warn('⚠️ Animation déjà en cours, ignore la demande');
+      return;
+    }
+
+    // Marquer comme en cours pour éviter les conflits
+    this.isLoading = true;
+    
+    // Faire apparaître le loader avec un fade in fluide avant l'animation
+    this.showLoaderWithFadeIn().then(() => {
+      // Reset des positions avant relance
+      this.resetLoaderImagePositions();
+      
+      // Lancer l'animation de stacking
+      this.animateLoaderImagesOnly();
+    });
+  }
+  
+  /**
+   * Fait apparaître le loader avec un effet fade in fluide
+   * @returns {Promise} Promise qui se résout quand le fade in est terminé
+   */
+  showLoaderWithFadeIn() {
+    return new Promise((resolve) => {
+      if (!this.loaderElement) {
+        logger.warn('⚠️ loaderElement non trouvé pour le fade in');
+        resolve();
+        return;
+      }
+
+      logger.debug('✨ Fade in du loader...');
+
+      document.body.style.overflow = 'hidden';
+		  document.body.style.height = '100vh';
+
+      // Préparer le loader pour le fade in (invisible mais positionné)
+      gsap.set(this.loaderElement, {
+        opacity: 0,
+        zIndex: '10',
+        display: 'block' // Au cas où il serait masqué
+      });
+
+      // Animation de fade in
+      gsap.to(this.loaderElement, {
+        opacity: 1,
+        duration: 0.4,
+        ease: "power2.out",
+        onComplete: () => {
+          // 1. Fermer le menu instantanément
+          this.closeMenuInstantly();
+          
+          // 2. Remettre le scroll horizontal de mainList à 0
+          this.resetMainListScroll();
+          
+          // 3. Repositionner mainList dans le même état qu'au chargement initial
+          this.resetMainListPosition();
+          
+          logger.debug('✅ Fade in du loader terminé avec reset complet');
+          resolve();
+        }
+      });
+    });
+  }
+  
+  /**
+   * Ferme le menu instantanément et le cache complètement
+   */
+  closeMenuInstantly() {
+    // Accéder au MenuManager via l'app globale si disponible
+    if (window.app && window.app.menuManager) {
+      logger.debug('🔒 Fermeture instantanée du menu...');
+      window.app.menuManager.closeMenu(true); // closeAll = true
+    }
+    
+    // Fallback + masquage supplémentaire pour éviter le flickering
+    const menuWrap = document.querySelector('.menu_wrap');
+    if (menuWrap) {
+      // Retirer les classes d'ouverture
+      menuWrap.classList.remove('is-open');
+      
+      // Masquage robuste avec GSAP pour éviter tout flickering
+      gsap.set(menuWrap, {
+        opacity: 0,
+        pointerEvents: 'none',
+        visibility: 'hidden'
+      });
+      
+      logger.debug('🔒 Menu fermé et caché complètement');
+    }
+  }
+  
+  /**
+   * Cache visuellement le menu (sans le fermer) de manière robuste
+   */
+  hideMenuVisually() {
+    const menuWrap = document.querySelector('.menu_wrap');
+    if (menuWrap) {
+      // Sauvegarder l'état actuel pour le restaurer plus tard
+      this._menuOriginalOpacity = getComputedStyle(menuWrap).opacity;
+      this._menuOriginalPointerEvents = getComputedStyle(menuWrap).pointerEvents;
+      this._menuOriginalVisibility = getComputedStyle(menuWrap).visibility;
+      
+      logger.debug(`🔍 Sauvegarde menu - opacity: ${this._menuOriginalOpacity}, pointerEvents: ${this._menuOriginalPointerEvents}, visibility: ${this._menuOriginalVisibility}`);
+      
+      // Masquage complet et immédiat
+      gsap.set(menuWrap, {
+        opacity: 0,
+        pointerEvents: 'none',
+        visibility: 'hidden'
+      });
+      
+      logger.debug('👻 Menu caché visuellement (complet)');
+    }
+  }
+  
+  /**
+   * Réaffiche le menu visuellement avec restauration complète des propriétés
+   */
+  showMenuVisually() {
+    const menuWrap = document.querySelector('.menu_wrap');
+    if (menuWrap) {
+      // Restaurer l'état d'origine ou forcer les valeurs par défaut correctes
+      gsap.set(menuWrap, {
+        opacity: this._menuOriginalOpacity || 1,
+        pointerEvents: this._menuOriginalPointerEvents || 'auto',
+        visibility: this._menuOriginalVisibility || 'visible'
+      });
+      
+      // Sécurité supplémentaire : nettoyer toutes les propriétés inline si nécessaire
+      if (!this._menuOriginalOpacity) {
+        menuWrap.style.removeProperty('opacity');
+      }
+      if (!this._menuOriginalPointerEvents) {
+        menuWrap.style.removeProperty('pointer-events');
+      }
+      if (!this._menuOriginalVisibility) {
+        menuWrap.style.removeProperty('visibility');
+      }
+      
+      logger.debug('👁️ Menu réaffiché visuellement avec restauration complète');
+      logger.debug(`🔍 Propriétés restaurées - opacity: ${this._menuOriginalOpacity || 'default'}, pointerEvents: ${this._menuOriginalPointerEvents || 'default'}, visibility: ${this._menuOriginalVisibility || 'default'}`);
+    }
+  }
+  
+  /**
+   * Remet le scroll horizontal de mainList à 0
+   */
+  resetMainListScroll() {
+    logger.debug('🔄 Reset du scroll horizontal de mainList...');
+    
+    // Reset via Lenis si disponible
+    const lenis = this.getLenis();
+    if (lenis) {
+      lenis.scrollTo(0, { immediate: true });
+      logger.debug('🔄 Scroll reset via Lenis');
+    }
+    
+    // Reset direct du mainList
+    if (this.mainList) {
+      this.mainList.scrollLeft = 0;
+      logger.debug('🔄 Scroll horizontal de mainList reset à 0');
+    }
+    
+    // Reset complet via les méthodes existantes
+    this.forceCompleteReset();
+  }
+  
+  /**
+   * Repositionne mainList dans le même état qu'au chargement initial
+   */
+  resetMainListPosition() {
+    if (!this.mainList) {
+      logger.warn('⚠️ mainList non trouvé pour le repositionnement');
+      return;
+    }
+    
+    logger.debug('🎯 Repositionnement de mainList à l\'état initial...');
+    
+    // Bloquer le scroll Lenis pendant l'animation
+    this.mainList.setAttribute('data-lenis-prevent', 'true');
+    document.body.style.overflow = 'hidden';
+		document.body.style.height = '100vh';
+
+    logger.debug('🔒 Scroll Lenis bloqué sur mainList');
+    
+    // Détection de l'orientation pour adapter le repositionnement
+    const currentOrientation = this.getCurrentOrientation();
+    const isHorizontal = currentOrientation === "horizontal";
+    
+    // D'abord, nettoyer toutes les propriétés existantes
+    gsap.set(this.mainList, { clearProps: "all" });
+    
+    if (isHorizontal) {
+      // En mode horizontal, forcer le retour à xPercent: 100 comme à l'initialisation
+      gsap.set(this.mainList, {
+        xPercent: 100,
+      });
+      logger.debug('🎯 mainList repositionné à xPercent: 100 (mode horizontal)');
+    } else {
+      // En mode vertical, s'assurer que les transformations sont effacées
+      gsap.set(this.mainList, {
+        xPercent: 0,
+        clearProps: "transform"
+      });
+      logger.debug('🎯 mainList repositionné à l\'état vertical');
+    }
+    
+    // Reset des infos des panels (comme à l'initialisation)
+    gsap.set(this.mainList.querySelectorAll('.slider-panel_infos'), {
+      opacity: 0,
+      y: -32,
+    });
+    
+    // Reset de la navbar (comme à l'initialisation)
+    if (this.navbar) {
+      gsap.set(this.navbar, {
+        opacity: 0,
+        y: -32,
+      });
+    }
+    
+    logger.debug('✅ mainList repositionné avec succès - État initial restauré');
+  }
+  
+  /**
+   * Débloquer le scroll Lenis sur mainList
+   */
+  unlockMainListScroll() {
+    if (this.mainList) {
+      this.mainList.removeAttribute('data-lenis-prevent');
+      logger.debug('🔓 Scroll Lenis débloqué sur mainList');
+    }
+  }
+  
+  /**
+   * Remet les images du loader à leur position initiale
+   */
+  resetLoaderImagePositions() {
+    if (!this.loaderContentThree) {
+      logger.warn('⚠️ loaderContentThree non trouvé pour le reset');
+      return;
+    }
+
+    gsap.set([".loader_content", ".loader_border"], { opacity: 0 });
+
+    // Reset immédiat des positions des images
+    gsap.set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
+      left: '100%',
+    });
+    
+    logger.debug('✅ Positions des images du loader et z-index réinitialisés');
+  }
+  
+  /**
+   * Lance uniquement l'animation de stacking des images
+   * Version simplifiée pour le replay depuis le menu
+   */
+  animateLoaderImagesOnly() {
+    if (!this.loaderContentThree) {
+      logger.error('❌ loaderContentThree non trouvé');
+      this.isLoading = false;
+      return;
+    }
+
+    // Remettre le z-index du loader à 10 pour qu'il soit visible
+    gsap.set(this.loaderElement, {
+      zIndex: -1,
+    });
+    
+    logger.debug('🎬 Animation isolée du stacking d\'images...');
+    
+    const tl = gsap.timeline();
+    
+    tl.to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
+      left: 0,
+      duration: function (index, target, list) {
+        return (index + 1) / list.length + 1; // Durée dynamique basée sur l'index
+      },
+      stagger: function (index, target, list) {
+        return ((index + 1) / list.length) * 1 + 0.5; // Stagger basé sur l'index
+      },
+      ease: "power4.out",
+    }).to(this.mainList, {
+			xPercent: 0,
+			duration: 2.125,
+			ease: "power4.out",
+			onComplete: () => {
+				document.body.style.overflow = 'auto';
+				document.body.style.height = 'auto';
+				const lenis = this.getLenis();
+
+				if (lenis) {
+					// Débloquer le scroll
+					lenis.start();
+				}
+				
+				// Rafraîchit ScrollTrigger après les modifications de layout
+				if (window.ScrollTrigger) {
+					ScrollTrigger.refresh();
+					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
+				}
+
+        this.showMenuVisually();
+			}
+		}, "-=1.8")
+		.to(this.navbar, {
+			opacity: 1,
+			y: 0,
+			duration: 0.8,
+			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+		}, "-=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
+			opacity: 1,
+			y: 0,
+			duration: 0.6,
+			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+			onComplete: () => {
+				logger.debug('✅ Animation des infos panels terminée');
+				gsap.set(this.mainList, { clearProps: "all" });
+				
+				// Ajouter un délai puis fade out fluide
+				gsap.to(this.loaderElement, {
+					opacity: 0,
+					duration: 0.3,
+					delay: 0.2, // Petit délai pour apprécier l'animation
+					ease: "power2.out",
+					onComplete: () => {
+						// Remettre le z-index à -1 pour que le loader passe derrière
+						gsap.set(this.loaderElement, {
+							zIndex: -1,
+						});
+
+						this.resetLoaderImagePositions();
+						
+						// Débloquer le scroll Lenis sur mainList
+						this.unlockMainListScroll();
+						
+						logger.success('✅ Animation de replay terminée avec fade out');
+						this.isLoading = false;
+					}
+				});
+			}
+		}, "<=0.2");
+  }
+  
+  /**
+   * Initialise l'écouteur d'événement pour le logo du menu
+   * À appeler après l'initialisation du MenuManager
+   */
+  initLogoClickListener() {
+    // Chercher le logo dans le menu avec le sélecteur fourni
+    const logoElement = document.querySelector('.menu_panel_item_top-link');
+    
+    if (!logoElement) {
+      logger.warn('⚠️ Logo du menu (.menu_panel_item_top-link) non trouvé');
+      return;
+    }
+    
+    // Ajouter l'écouteur d'événement
+    logoElement.addEventListener('click', (e) => {
+      e.preventDefault(); // Empêcher le comportement par défaut
+      logger.debug('🖱️ Clic sur le logo détecté, relance de l\'animation');
+      this.replayLoaderAnimation();
+    });
+    
+    logger.success('✅ Écouteur d\'événement du logo initialisé');
+  }
 
   /**
    * Nettoie les animations et event listeners

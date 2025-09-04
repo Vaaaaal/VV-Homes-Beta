@@ -125,6 +125,11 @@ export class VVPlaceApp {
         this.menuManager = new MenuManager(this.smoothScrollManager);
         this.menuManager.init().then(() => {
           logger.success(' MenuManager initialisé avec succès');
+          
+          // Initialiser l'écouteur du logo pour relancer l'animation loader
+          if (this.loaderManager) {
+            this.loaderManager.initLogoClickListener();
+          }
         }).catch((error) => {
           logger.error(' Erreur lors de l\'initialisation du MenuManager:', error);
           this.menuManager = null;
