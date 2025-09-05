@@ -255,7 +255,6 @@ logger.emergency('🚨 Problème détecté')
 window.app                    // Instance principale
 window.debugVV.checkCriticalIssues()
 window.crashDetector.generateCrashReport()
-window.orientationTester.runStressTest()
 ```
 
 ## ⚡ Optimisations
