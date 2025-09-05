@@ -55,7 +55,7 @@ export class SmoothScrollManager {
       this.lenis.destroy();
     }
 
-  const orientation = (window.WindowUtils && WindowUtils.getOrientation()) || this.getCurrentOrientation();
+  const orientation = (window.WindowUtils && window.WindowUtils.getOrientation()) || this.getCurrentOrientation();
     
     // Crée la nouvelle instance avec l'orientation appropriée
     this.lenis = new Lenis({ 

@@ -44,7 +44,7 @@ export class MenuManager {
     
   // Historique & états actifs
   this.navigationState = new NavigationState();
-  this.activeState = new NavigationActiveState(this.findButtonByPanelName?.bind(this) || (()=>null));
+  this.activeState = new NavigationActiveState(this.findButtonByPanelName.bind(this));
 
   // Bind handlers réutilisés
   this._onDocumentClick = this._onDocumentClick.bind(this);
@@ -805,26 +805,33 @@ export class MenuManager {
    * Seul le dernier panel ouvert doit afficher son bouton "exit all"
    */
   updateExitAllButtonsVisibility() {
-    this.menuExitAll.forEach(exitAllBtn => {
-      gsap.to(exitAllBtn, { opacity: 0, duration: 0.25, ease: CONFIG.ANIMATION.EASE.POWER2.OUT, onComplete: () => { exitAllBtn.style.display = 'none'; } });
+    // Déterminer le panel cible (dernier de l'historique)
+    const lastPanelName = this.navigationState.current();
+    let targetExitAll = null;
+    if (lastPanelName) {
+      const lastPanel = document.querySelector(`.menu_panel_item[data-name="${lastPanelName}"]`);
+      if (lastPanel) targetExitAll = lastPanel.querySelector(CONFIG.SELECTORS.MENU_EXIT_ALL);
+    }
+
+    // Masquer tous les autres boutons sans toucher au ciblé (évite race condition)
+    this.menuExitAll.forEach(btn => {
+      if (btn === targetExitAll) return; // ne pas lancer un fade-out sur le ciblé
+      gsap.killTweensOf(btn);
+      gsap.to(btn, {
+        opacity: 0,
+        duration: 0.2,
+        ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
+        onComplete: () => { btn.style.display = 'none'; }
+      });
     });
 
-    // Si aucun panel n'est ouvert, ne pas afficher de bouton
-  if (this.navigationState.history.length === 0) {
-      return;
-    }
+    // Si aucun panel (au niveau racine) on pourrait afficher le bouton du premier panel si désiré
+    if (!targetExitAll) return; // rien à afficher
 
-    // Afficher le bouton "exit all" uniquement sur le dernier panel ouvert
-  const lastPanelName = this.navigationState.current();
-    const lastPanel = document.querySelector(`.menu_panel_item[data-name="${lastPanelName}"]`);
-    
-    if (lastPanel) {
-      const exitAllBtn = lastPanel.querySelector(CONFIG.SELECTORS.MENU_EXIT_ALL);
-      if (exitAllBtn) {
-        exitAllBtn.style.display = 'block';
-  gsap.to(exitAllBtn, { opacity: 1, duration: 0.25, ease: CONFIG.ANIMATION.EASE.POWER2.OUT });
-      }
-    }
+    // Afficher / réanimer le bouton ciblé
+    gsap.killTweensOf(targetExitAll);
+    targetExitAll.style.display = 'block';
+    gsap.to(targetExitAll, { opacity: 1, duration: 0.25, ease: CONFIG.ANIMATION.EASE.POWER2.OUT });
   }
 
   /**

@@ -192,7 +192,7 @@ const WindowUtils = {
     isMobilePortrait,
     isMobileLandscape,
     isTablet,
-    isDesktop,
+    isDesktop: isDesktop,
     
     // Event handling
     debounce,
@@ -276,7 +276,9 @@ WindowUtils.enhanceRichTextFigures = function enhanceRichTextFigures() {
 
 // Exposer les nouveaux helpers globalement (si déjà exporté, simplement étendu)
 if (typeof window !== 'undefined') {
-    window.WindowUtils = WindowUtils;
+    if (typeof window.WindowUtils === 'undefined') {
+        window.WindowUtils = WindowUtils;
+    }
 }
 
 // Make it available globally and as module

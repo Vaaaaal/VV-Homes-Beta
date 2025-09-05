@@ -55,7 +55,7 @@ export class SliderManager {
    * @returns {string} "horizontal" ou "vertical"
    */
   getCurrentOrientation() {
-    if (window.WindowUtils && WindowUtils.getOrientation) return WindowUtils.getOrientation();
+    if (window.WindowUtils && window.WindowUtils.getOrientation) return window.WindowUtils.getOrientation();
     return window.innerWidth >= 992 ? 'horizontal' : 'vertical';
   }
 
