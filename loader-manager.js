@@ -210,7 +210,7 @@ export class LoaderManager {
 
 		if (isHorizontal) {
 			gsap.set(this.loaderElement, {
-				zIndex: -1, // Assure que le loader est au-dessus de tout
+				zIndex: -1, // Assure que le loader est au-dessous de tout
 			});
 			this.createHorizontalAnimation();
 		} else {
@@ -574,17 +574,30 @@ export class LoaderManager {
       return;
     }
 
-    // Marquer comme en cours pour éviter les conflits
-    this.isLoading = true;
+    // Détection de l'orientation pour adapter le comportement
+    const currentOrientation = this.getCurrentOrientation();
+    const isHorizontal = currentOrientation === "horizontal";
     
-    // Faire apparaître le loader avec un fade in fluide avant l'animation
-    this.showLoaderWithFadeIn().then(() => {
-      // Reset des positions avant relance
-      this.resetLoaderImagePositions();
+    if (isHorizontal) {
+      // Mode horizontal (desktop) : lancer l'animation de replay
+      logger.debug('📱 Mode horizontal détecté - Lancement de l\'animation de replay');
       
-      // Lancer l'animation de stacking
-      this.animateLoaderImagesOnly();
-    });
+      // Marquer comme en cours pour éviter les conflits
+      this.isLoading = true;
+      
+      // Faire apparaître le loader avec un fade in fluide avant l'animation
+      this.showLoaderWithFadeIn().then(() => {
+        // Reset des positions avant relance
+        this.resetLoaderImagePositions();
+        
+        // Lancer l'animation de stacking
+        this.animateLoaderImagesOnly();
+      });
+    } else {
+      // Mode vertical (mobile) : fermer simplement le menu
+      logger.debug('📱 Mode vertical détecté - Fermeture du menu uniquement');
+      this.closeAllPanels();
+    }
   }
   
   /**
@@ -618,19 +631,37 @@ export class LoaderManager {
         ease: "power2.out",
         onComplete: () => {
           // 1. Fermer le menu instantanément
-          this.closeMenuInstantly();
+          this.closeAllPanels();
           
-          // 2. Remettre le scroll horizontal de mainList à 0
+          // 2. Cacher visuellement le menu pour éviter le flickering
+          this.hideMenuVisually();
+          
+          // 3. Remettre le scroll horizontal de mainList à 0
           this.resetMainListScroll();
           
-          // 3. Repositionner mainList dans le même état qu'au chargement initial
+          // 4. Repositionner mainList dans le même état qu'au chargement initial
           this.resetMainListPosition();
           
-          logger.debug('✅ Fade in du loader terminé avec reset complet');
+          logger.debug('✅ Fade in du loader terminé avec reset complet et menu caché');
           resolve();
         }
       });
     });
+  }
+  
+  /**
+   * Ferme tous les panels du menu (utilise la même fonction que exit_all)
+   */
+  closeAllPanels() {
+    // Accéder au MenuManager via l'app globale si disponible
+    if (window.app && window.app.menuManager) {
+      logger.debug('🔒 Fermeture de tous les panels du menu (via closeAllPanels)...');
+      window.app.menuManager.closeAllPanels();
+    } else {
+      // Fallback vers l'ancienne méthode si le MenuManager n'est pas disponible
+      logger.warn('⚠️ MenuManager non disponible, utilisation de closeMenuInstantly en fallback');
+      this.closeMenuInstantly();
+    }
   }
   
   /**
@@ -814,17 +845,28 @@ export class LoaderManager {
 
     gsap.set([".loader_content", ".loader_border"], { opacity: 0 });
 
-    // Reset immédiat des positions des images
-    gsap.set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-      left: '100%',
-    });
+    // Détection de l'orientation pour adapter le reset
+    const currentOrientation = this.getCurrentOrientation();
+    const isHorizontal = currentOrientation === "horizontal";
+
+    if (isHorizontal) {
+      // Reset immédiat des positions des images
+      gsap.set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
+        left: '100%',
+      });
+    } else {
+      // Reset immédiat des positions des images
+      gsap.set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
+        left: '100%',
+      });
+    }
     
     logger.debug('✅ Positions des images du loader et z-index réinitialisés');
   }
   
   /**
    * Lance uniquement l'animation de stacking des images
-   * Version simplifiée pour le replay depuis le menu
+   * Version simplifiée pour le replay depuis le menu (mode horizontal uniquement)
    */
   animateLoaderImagesOnly() {
     if (!this.loaderContentThree) {
@@ -833,13 +875,21 @@ export class LoaderManager {
       return;
     }
 
-    // Remettre le z-index du loader à 10 pour qu'il soit visible
+    logger.debug('🎬 Animation isolée du stacking d\'images (mode horizontal)...');
+    
+    // Remettre le z-index du loader à -1 pour l'horizontal
     gsap.set(this.loaderElement, {
       zIndex: -1,
     });
     
-    logger.debug('🎬 Animation isolée du stacking d\'images...');
-    
+    // Lancer directement l'animation horizontale
+    this.createHorizontalReplayAnimation();
+  }
+  
+  /**
+   * Crée l'animation de replay pour le mode horizontal
+   */
+  createHorizontalReplayAnimation() {
     const tl = gsap.timeline();
     
     tl.to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
@@ -871,7 +921,7 @@ export class LoaderManager {
 					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
 				}
 
-        this.showMenuVisually();
+        // Ne pas réafficher le menu ici - attendre la fin de l'animation
 			}
 		}, "-=1.8")
 		.to(this.navbar, {
@@ -885,8 +935,11 @@ export class LoaderManager {
 			duration: 0.6,
 			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
 			onComplete: () => {
-				logger.debug('✅ Animation des infos panels terminée');
+				logger.debug('✅ Animation des infos panels terminée (horizontal replay)');
 				gsap.set(this.mainList, { clearProps: "all" });
+				
+				// Réafficher le menu visuellement maintenant que l'animation est presque terminée
+				this.showMenuVisually();
 				
 				// Ajouter un délai puis fade out fluide
 				gsap.to(this.loaderElement, {
@@ -905,7 +958,7 @@ export class LoaderManager {
 						// Débloquer le scroll Lenis sur mainList
 						this.unlockMainListScroll();
 						
-						logger.success('✅ Animation de replay terminée avec fade out');
+						logger.success('✅ Animation de replay horizontale terminée avec fade out');
 						this.isLoading = false;
 					}
 				});
