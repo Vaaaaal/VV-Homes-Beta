@@ -205,7 +205,7 @@ const WindowUtils = {
 // ======================================================
 // Orientation unifiée (évite la duplication getCurrentOrientation())
 WindowUtils.getOrientation = function getOrientation() {
-    return WindowUtils.isDesktop() ? 'horizontal' : 'vertical';
+    return isDesktop() ? 'horizontal' : 'vertical';
 };
 
 // Reset agressif centralisé (remplace emergencyScrollReset, forceScrollReset, forceWindowScrollReset...)
