@@ -218,18 +218,18 @@ export class SliderManager {
       window.scrollTo(0, window.scrollY);
     }
 
-    // Active la première slide et désactive toutes les autres
-    this.sliderItems.forEach((item, index) => {
-      if (index === 0) {
-        item.classList.add('is-active-panel');
-      } else {
-        item.classList.remove('is-active-panel');
-      }
+    // Active la première slide (firstSlide) et désactive toutes les autres
+    // Désactive d'abord toutes les slides
+    this.sliderItems.forEach((item) => {
+      item.classList.remove('is-active-panel');
     });
-
-    // Active la catégorie de la première slide
-    if (this.sliderItems.length > 0) {
-      const firstSlideCategory = this.sliderItems[0].dataset.sliderCategory;
+    
+    // Active la firstSlide qui est maintenant la vraie première slide
+    if (this.firstSlide) {
+      this.firstSlide.classList.add('is-active-panel');
+      
+      // Active la catégorie de la première slide
+      const firstSlideCategory = this.firstSlide.dataset.sliderCategory;
       
       // Désactive toutes les catégories
       this.categoriesItems.forEach(cat => {
@@ -245,6 +245,36 @@ export class SliderManager {
         firstCategory.classList.add('is-active');
         // Remet la position Y de la catégorie
         gsap.set(firstCategory, { yPercent: -100 });
+      }
+    } else {
+      // Fallback sur l'ancienne logique si firstSlide n'existe pas
+      this.sliderItems.forEach((item, index) => {
+        if (index === 0) {
+          item.classList.add('is-active-panel');
+        } else {
+          item.classList.remove('is-active-panel');
+        }
+      });
+
+      // Active la catégorie de la première slide
+      if (this.sliderItems.length > 0) {
+        const firstSlideCategory = this.sliderItems[0].dataset.sliderCategory;
+        
+        // Désactive toutes les catégories
+        this.categoriesItems.forEach(cat => {
+          cat.classList.remove('is-active', 'is-activated', 'is-desactived');
+        });
+
+        // Active la première catégorie
+        const firstCategory = this.categoriesItems.find(
+          cat => cat.dataset.categorySlug === firstSlideCategory
+        );
+        
+        if (firstCategory) {
+          firstCategory.classList.add('is-active');
+          // Remet la position Y de la catégorie
+          gsap.set(firstCategory, { yPercent: -100 });
+        }
       }
     }
 
@@ -283,8 +313,8 @@ export class SliderManager {
     const sortedItems = this.sortItemsByOrder([...this.sliderItems]);
     
     // Limiter le nombre d'items au maximum disponible
-    const maxItems = Math.min(count, sortedItems.length);
-    const selectedItems = sortedItems.slice(0, maxItems);
+    const maxItems = Math.min(count, sortedItems.length - 1);
+    const selectedItems = sortedItems.slice(1, maxItems);
     
     logger.debug(`📋 Récupération de ${selectedItems.length}/${sortedItems.length} items triés`);
     
@@ -303,18 +333,27 @@ export class SliderManager {
     // Récupère la catégorie de la slide active
     const activeCategory = activePanel.dataset.sliderCategory;
     
-    // Trouve toutes les slides de cette catégorie (sauf la dernière et la première)
+    // Trouve toutes les slides de cette catégorie dans l'ordre DOM (incluant first, excluant last)
     const panelsInCategory = Array.from(document.querySelectorAll('.slider-panel_item'))
-      .filter(item => item.dataset.sliderCategory === activeCategory && !item.classList.contains('is-last') && !item.classList.contains('is-first'));
+      .filter(item => item.dataset.sliderCategory === activeCategory && !item.classList.contains('is-last'));
 
     // Calcule la position de la slide active dans sa catégorie
     const activeIndex = panelsInCategory.indexOf(activePanel);
     const total = panelsInCategory.length;
     
-    if (total < 2) return; // Évite la division par zéro
+    // Debug pour comprendre le problème
+    logger.debug(`🎯 updateIndicatorBall: 
+      - Active panel: ${activePanel.classList.contains('is-first') ? 'FIRST' : 'NORMAL'} 
+      - Category: ${activeCategory}
+      - Index in category: ${activeIndex}/${total-1}
+      - Panels in category: ${panelsInCategory.length}`);
+    
+    if (total < 2 || activeIndex === -1) return; // Évite la division par zéro et les index invalides
     
     // Calcule le pourcentage de progression (0% = début, 100% = fin)
     const percent = activeIndex / (total - 1);
+
+    logger.debug(`🎯 Indicator moving to: ${percent * 100}%`);
 
     // Anime la boule vers sa nouvelle position
     gsap.to(this.indicatorBall, {
@@ -336,6 +375,9 @@ export class SliderManager {
     sorted.forEach((item) => sliderList.appendChild(item));
     // Ajoute la slide de fin en dernier
     sliderList.appendChild(this.lastSlide);
+    // Ajoute la slide de début en premier et ajoute les data-attributes nécessaire
+    this.firstSlide.dataset.sliderOrder = 0;
+    this.firstSlide.dataset.sliderCategory = sorted[0].dataset.sliderCategory;
     sliderList.prepend(this.firstSlide);
   }
 
@@ -347,7 +389,13 @@ export class SliderManager {
   setupIndicatorBall() {
     const isHorizontal = this.currentOrientation === "horizontal";
     
-    this.sliderItems.forEach((item) => {
+    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
+    const allInteractiveSlides = [...this.sliderItems];
+    if (this.firstSlide) {
+      allInteractiveSlides.unshift(this.firstSlide); // Ajoute la première slide au début
+    }
+    
+    allInteractiveSlides.forEach((item) => {
       // Configuration adaptée selon l'orientation
       const triggerConfig = isHorizontal ? {
         trigger: item,
@@ -397,7 +445,13 @@ export class SliderManager {
   createScrollAnimations() {
     const isHorizontal = this.currentOrientation === "horizontal";
     
-    this.sliderItems.forEach((item) => {
+    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
+    const allInteractiveSlides = [...this.sliderItems];
+    if (this.firstSlide) {
+      allInteractiveSlides.unshift(this.firstSlide); // Ajoute la première slide au début
+    }
+    
+    allInteractiveSlides.forEach((item) => {
       if (isHorizontal) {
         this.createHorizontalAnimations(item);
       } else {
@@ -454,8 +508,14 @@ export class SliderManager {
     // Détruit les animations existantes
     this.destroyScrollTriggers();
     
+    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
+    const allInteractiveSlides = [...this.sliderItems];
+    if (this.firstSlide) {
+      allInteractiveSlides.unshift(this.firstSlide);
+    }
+    
     // Crée seulement les animations essentielles (sans snap coûteux)
-    this.sliderItems.forEach((item) => {
+    allInteractiveSlides.forEach((item) => {
       if (orientation === "horizontal") {
         this.createLightweightHorizontalAnimations(item);
       } else {
@@ -504,7 +564,13 @@ export class SliderManager {
   setupLightweightIndicator() {
     const isHorizontal = this.currentOrientation === "horizontal";
     
-    this.sliderItems.forEach((item) => {
+    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
+    const allInteractiveSlides = [...this.sliderItems];
+    if (this.firstSlide) {
+      allInteractiveSlides.unshift(this.firstSlide);
+    }
+    
+    allInteractiveSlides.forEach((item) => {
       ScrollTrigger.create({
         trigger: item,
         start: isHorizontal ? "left 25%" : "top 25%",
@@ -676,8 +742,14 @@ export class SliderManager {
    * Détruit seulement les ScrollTriggers liés à ce gestionnaire
    */
   destroyScrollTriggers() {
+    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
+    const allInteractiveSlides = [...this.sliderItems];
+    if (this.firstSlide) {
+      allInteractiveSlides.push(this.firstSlide);
+    }
+    
     ScrollTrigger.getAll().forEach(trigger => {
-      if (trigger.vars.trigger && this.sliderItems.includes(trigger.vars.trigger)) {
+      if (trigger.vars.trigger && allInteractiveSlides.includes(trigger.vars.trigger)) {
         trigger.kill();
       }
     });
