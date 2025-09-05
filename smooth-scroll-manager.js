@@ -55,7 +55,7 @@ export class SmoothScrollManager {
       this.lenis.destroy();
     }
 
-    const orientation = this.getCurrentOrientation();
+  const orientation = (window.WindowUtils && WindowUtils.getOrientation()) || this.getCurrentOrientation();
     
     // Crée la nouvelle instance avec l'orientation appropriée
     this.lenis = new Lenis({ 
@@ -72,41 +72,14 @@ export class SmoothScrollManager {
    * Gère la restauration automatique du navigateur lors des refresh
    */
   forceScrollReset() {
-    // Reset immédiat multiple
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.documentElement.scrollLeft = 0;
-    document.body.scrollTop = 0;
-    document.body.scrollLeft = 0;
-    
-    // Reset de Lenis si disponible
-    if (this.lenis) {
-      this.lenis.scrollTo(0, { immediate: true });
+    if (window.WindowUtils) {
+      WindowUtils.resetScroll();
+      WindowUtils.resetLenis(this.lenis);
+    } else {
+      if (this.lenis) this.lenis.scrollTo(0,{ immediate:true });
+      window.scrollTo(0,0);
     }
-    
-    // Surveillance continue pour contrer la restauration du navigateur
-    // Le navigateur peut restaurer la position après quelques millisecondes
-    const resetIntervals = [10, 50, 100, 200, 500, 1000];
-    
-    resetIntervals.forEach(delay => {
-      setTimeout(() => {
-        if (!this.isScrollResetComplete()) {
-          window.scrollTo(0, 0);
-          document.documentElement.scrollTop = 0;
-          document.documentElement.scrollLeft = 0;
-          document.body.scrollTop = 0;
-          document.body.scrollLeft = 0;
-          
-          if (this.lenis) {
-            this.lenis.scrollTo(0, { immediate: true });
-          }
-          
-          logger.debug(`🔄 SmoothScrollManager: Reset forcé après ${delay}ms`);
-        }
-      }, delay);
-    });
-    
-    console.log('🔄 SmoothScrollManager: Reset agressif initié');
+    logger.debug('🔄 SmoothScrollManager: Reset centralisé');
   }
 
   /**

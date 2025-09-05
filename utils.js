@@ -200,6 +200,85 @@ const WindowUtils = {
     onBreakpointChange
 };
 
+// ======================================================
+// EXTENSIONS PARTAGÉES (Refactor centralisation helpers)
+// ======================================================
+// Orientation unifiée (évite la duplication getCurrentOrientation())
+WindowUtils.getOrientation = function getOrientation() {
+    return WindowUtils.isDesktop() ? 'horizontal' : 'vertical';
+};
+
+// Reset agressif centralisé (remplace emergencyScrollReset, forceScrollReset, forceWindowScrollReset...)
+// Options : { repeatDelays: number[], refreshScrollTrigger: boolean }
+WindowUtils.resetScroll = function resetScroll(options = {}) {
+    const {
+        repeatDelays = [0, 10, 50, 100, 200, 500],
+        refreshScrollTrigger = false
+    } = options;
+
+    const doReset = () => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.documentElement.scrollLeft = 0;
+        document.body.scrollTop = 0;
+        document.body.scrollLeft = 0;
+        // Containers horizontaux potentiels
+        ['.main-wrapper', '.slider-panel_wrap', '.slider-panel_list'].forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) { el.scrollLeft = 0; el.scrollTop = 0; }
+        });
+    };
+
+    repeatDelays.forEach(d => setTimeout(doReset, d));
+
+    if (refreshScrollTrigger && window.ScrollTrigger) {
+        // Laisser le temps au DOM de se stabiliser
+        setTimeout(() => { try { ScrollTrigger.refresh(); } catch(_) {} }, 550);
+    }
+};
+
+// Helper pour réinitialiser Lenis si fourni
+WindowUtils.resetLenis = function resetLenis(lenisInstance) {
+    if (lenisInstance && typeof lenisInstance.scrollTo === 'function') {
+        try { lenisInstance.scrollTo(0, { immediate: true }); } catch(_) {}
+    }
+};
+
+// Traitement léger du texte riche (ex-RichTextManager)
+WindowUtils.enhanceRichTextFigures = function enhanceRichTextFigures() {
+    const richTexts = document.querySelectorAll('.text-rich-text');
+    if (!richTexts.length) return 0;
+    let processed = 0;
+    richTexts.forEach(container => {
+        const figures = container.querySelectorAll('figure');
+        figures.forEach(fig => {
+            const caption = fig.querySelector('figcaption');
+            if (!caption) return;
+            if (!caption.textContent.includes('///')) return;
+            const parts = caption.textContent.split('///');
+            const source = parts[0].trim();
+            const description = (parts[1] || '').trim();
+            if (!source) return;
+            const firstDiv = fig.querySelector('div');
+            if (!firstDiv) return;
+            // Éviter double insertion
+            if (firstDiv.querySelector('.media_source')) return;
+            const span = document.createElement('span');
+            span.className = 'media_source';
+            span.textContent = source;
+            caption.textContent = description;
+            firstDiv.appendChild(span);
+            processed++;
+        });
+    });
+    return processed;
+};
+
+// Exposer les nouveaux helpers globalement (si déjà exporté, simplement étendu)
+if (typeof window !== 'undefined') {
+    window.WindowUtils = WindowUtils;
+}
+
 // Make it available globally and as module
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = WindowUtils;

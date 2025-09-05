@@ -29,8 +29,8 @@ export class SliderManager {
     this.indicatorBall = document.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
     this.indicatorTrack = document.querySelector(CONFIG.SELECTORS.INDICATOR_TRACK);
     
-    // Reset immédiat du scroll dès la création de l'instance
-    this.immediateReset();
+  // Reset différé dans init pour laisser d'éventuels styles critiques se poser
+  // (anciennement exécuté dans le constructeur)
     
     // Détection de l'orientation actuelle
     this.currentOrientation = this.getCurrentOrientation();
@@ -43,11 +43,11 @@ export class SliderManager {
    * Initialise tous les composants du slider
    */
   init() {
-    this.resetSliderToStart();    // Remet le slider au début
-    this.setupSliderOrder();     // Organise l'ordre des slides
-    this.handleDynamicTagInsertion(); // Gère l'insertion des tags dynamiques CMS
-    this.createScrollAnimations(); // Crée les animations de scroll
-    this.setupIndicatorBall();   // Configure l'indicateur de progression
+  this.immediateReset();            // Reset global centralisé
+  this.setupSliderOrder();          // Organise l'ordre des slides
+  this.resetSliderToStart();        // Positionne après ordre établi
+  this.handleDynamicTagInsertion(); // Gère insertion CMS
+  this.rebuildScrollSystem();       // Crée triggers + animations + indicateur
   }
 
   /**
@@ -55,12 +55,8 @@ export class SliderManager {
    * @returns {string} "horizontal" ou "vertical"
    */
   getCurrentOrientation() {
-    // Utilise WindowUtils si disponible, sinon fallback sur window.innerWidth
-    const isDesktop = window.WindowUtils ? 
-      window.WindowUtils.isDesktop() : 
-      window.innerWidth >= 992; // 992px comme seuil pour desktop
-    
-    return isDesktop ? "horizontal" : "vertical";
+    if (window.WindowUtils && WindowUtils.getOrientation) return WindowUtils.getOrientation();
+    return window.innerWidth >= 992 ? 'horizontal' : 'vertical';
   }
 
   /**
@@ -96,18 +92,11 @@ export class SliderManager {
    */
   handleOrientationChange(newOrientation = null, context = null) {
     const targetOrientation = newOrientation || this.getCurrentOrientation();
-    
-    if (targetOrientation !== this.currentOrientation) {
-      logger.slider(' SliderManager: ${this.currentOrientation} → ${targetOrientation}');
-      this.currentOrientation = targetOrientation;
-      
-      // Détruit et recrée les animations avec la nouvelle orientation
-      this.destroyScrollTriggers();
-      this.createScrollAnimations();
-      this.setupIndicatorBall();
-      
-      logger.success(' SliderManager mis à jour');
-    }
+    if (targetOrientation === this.currentOrientation) return;
+    logger.slider(` SliderManager orientation: ${this.currentOrientation} → ${targetOrientation}`);
+    this.currentOrientation = targetOrientation;
+    this.rebuildScrollSystem();
+    logger.success(' SliderManager mis à jour');
   }
 
   /**
@@ -115,47 +104,11 @@ export class SliderManager {
    * Se déclenche avant toute autre initialisation
    */
   immediateReset() {
-    logger.debug('🔄 SliderManager: Reset immédiat du scroll...');
-    
-    // Reset agressif de window scroll
-    this.forceWindowScrollReset();
-    
-    // Reset ScrollTrigger si disponible
-    if (window.ScrollTrigger) {
-      ScrollTrigger.refresh();
-      ScrollTrigger.update();
-      logger.debug('🔄 ScrollTrigger rafraîchi');
-    }
-    
-    // Reset tous les containers potentiels
-    const containers = [
-      CONFIG.SELECTORS.SLIDER_LIST,
-      '.slider-panel_list',
-      '.main-wrapper',
-      '.slider-panel_wrap'
-    ];
-    
-    containers.forEach(selector => {
-      const container = document.querySelector(selector);
-      if (container) {
-        container.scrollLeft = 0;
-        container.scrollTop = 0;
-        logger.debug(`🔄 Container ${selector} reset`);
-      }
-    });
-    
-    // Reset GSAP de tous les sliderItems immédiatement
-    this.sliderItems.forEach((item) => {
-      gsap.set(item, { 
-        xPercent: 0, 
-        yPercent: 0, 
-        x: 0, 
-        y: 0,
-        clearProps: "transform" 
-      });
-    });
-    
-    logger.debug('✅ SliderManager: Reset immédiat terminé');
+  logger.debug('🔄 SliderManager: Reset (centralisé)');
+  if (window.WindowUtils) WindowUtils.resetScroll(); else window.scrollTo(0,0);
+  if (window.ScrollTrigger) { try { ScrollTrigger.refresh(); ScrollTrigger.update(); } catch(_) {} }
+  this.sliderItems.forEach(item => gsap.set(item,{xPercent:0,yPercent:0,x:0,y:0,clearProps:'transform'}));
+  logger.debug('✅ SliderManager: Reset terminé');
   }
 
   /**
@@ -163,28 +116,8 @@ export class SliderManager {
    * Similaire à SmoothScrollManager mais pour le SliderManager
    */
   forceWindowScrollReset() {
-    // Reset immédiat multiple
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.documentElement.scrollLeft = 0;
-    document.body.scrollTop = 0;
-    document.body.scrollLeft = 0;
-    
-    // Surveillance pour contrer la restauration du navigateur
-    const resetIntervals = [10, 50, 100, 200];
-    
-    resetIntervals.forEach(delay => {
-      setTimeout(() => {
-        if (window.scrollY !== 0 || window.scrollX !== 0) {
-          window.scrollTo(0, 0);
-          document.documentElement.scrollTop = 0;
-          document.documentElement.scrollLeft = 0;
-          document.body.scrollTop = 0;
-          document.body.scrollLeft = 0;
-          logger.debug(`🔄 SliderManager: Reset forcé après ${delay}ms`);
-        }
-      }, delay);
-    });
+  if (window.WindowUtils) return WindowUtils.resetScroll();
+  window.scrollTo(0,0);
   }
 
   /**
@@ -442,61 +375,45 @@ export class SliderManager {
    * Crée toutes les animations liées au scroll pour chaque slide
    * S'adapte automatiquement à l'orientation (horizontal/vertical)
    */
-  createScrollAnimations() {
-    const isHorizontal = this.currentOrientation === "horizontal";
-    
-    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
-    const allInteractiveSlides = [...this.sliderItems];
-    if (this.firstSlide) {
-      allInteractiveSlides.unshift(this.firstSlide); // Ajoute la première slide au début
-    }
-    
-    allInteractiveSlides.forEach((item) => {
-      if (isHorizontal) {
-        this.createHorizontalAnimations(item);
-      } else {
-        this.createVerticalAnimations(item);
-      }
-    });
+  rebuildScrollSystem() {
+    this.destroyScrollTriggers();
+    const isHorizontal = this.currentOrientation === 'horizontal';
+    this.getInteractiveSlides().forEach(item => this.createAnimationsForItem(item, isHorizontal));
+    this.setupIndicatorBall();
   }
 
   /**
    * Crée les animations pour le mode horizontal
    * @param {HTMLElement} item - La slide à animer
    */
-  createHorizontalAnimations(item) {
-    // Animation de background pendant le scroll (avec effet de snap)
+  createAnimationsForItem(item, isHorizontal) {
+    if (!isHorizontal) {
+      // Mode vertical : pas d'animation de translation (design original)
+      return;
+    }
+    // Timeline de fond + snap
     gsap.timeline({
       scrollTrigger: {
         trigger: item,
-        start: "left right",    // Début : côté gauche entre dans l'écran à droite
-        end: "left left",       // Fin : côté gauche atteint le côté gauche de l'écran
-        scrub: true,           // Synchronise l'animation avec la vitesse de scroll
-        horizontal: true,      // Mode horizontal
-        snap: {
-          snapTo: [0, 0.5, 1],                    // Points de snap (début, milieu, fin)
-          duration: CONFIG.ANIMATION.SNAP_DURATION, // Durée du snap
-          ease: CONFIG.ANIMATION.SNAP_EASE,        // Courbe d'animation du snap
-        },
-      },
-    });
-
-    // Animation de déplacement de la slide pendant le scroll
-    gsap.fromTo(
-      item,
-      { xPercent: 0, yPercent: 0 },    // Position initiale (pas de décalage)
-      {
-        xPercent: 100,                 // Position finale (complètement à droite)
-        ease: "none",                  // Animation linéaire (suit exactement le scroll)
-        scrollTrigger: {
-          trigger: item,
-          start: "left left",          // Début : côté gauche atteint le côté gauche
-          end: "right left",           // Fin : côté droit atteint le côté gauche
-          scrub: true,                 // Animation liée au scroll
-          horizontal: true,
-        },
+        start: 'left right',
+        end: 'left left',
+        scrub: true,
+        horizontal: true,
+        snap: { snapTo: [0,0.5,1], duration: CONFIG.ANIMATION.SNAP_DURATION, ease: CONFIG.ANIMATION.SNAP_EASE }
       }
-    );
+    });
+    // Translation
+    gsap.fromTo(item,{xPercent:0,yPercent:0},{
+      xPercent:100,
+      ease:'none',
+      scrollTrigger:{
+        trigger:item,
+        start:'left left',
+        end:'right left',
+        scrub:true,
+        horizontal:true
+      }
+    });
   }
 
   /**
@@ -597,31 +514,7 @@ export class SliderManager {
    * Crée les animations pour le mode vertical
    * @param {HTMLElement} item - La slide à animer
    */
-  createVerticalAnimations(item) {
-    // Animation de background pendant le scroll vertical (avec effet de snap)
-    // Seul le snap est conservé, sans effet de parallaxe
-    
-    // SCROLL SNAP TEMPORAIREMENT DÉSACTIVÉ POUR LES TESTS
-    /*
-    gsap.timeline({
-      scrollTrigger: {
-        trigger: item,
-        start: "top bottom",   // Début : haut de l'élément entre par le bas de l'écran
-        end: "bottom top",     // Fin : bas de l'élément sort par le haut de l'écran
-        scrub: true,          // Synchronise l'animation avec la vitesse de scroll
-        horizontal: false,    // Mode vertical
-        snap: {
-          snapTo: [0, 0.5, 1],                      // Points de snap (début, milieu, fin)
-          duration: CONFIG.ANIMATION.SNAP_DURATION, // Durée du snap
-          ease: CONFIG.ANIMATION.SNAP_EASE,        // Courbe d'animation du snap
-        },
-      },
-    });
-    */
-
-    // Pas d'animation de déplacement en mode vertical pour éviter l'effet parallaxe
-    // Les slides restent dans leur position naturelle avec juste le snap
-  }
+  // createVerticalAnimations supprimé (logique fusionnée dans createAnimationsForItem)
 
   /**
    * Gère l'activation des catégories selon la slide active
@@ -742,17 +635,18 @@ export class SliderManager {
    * Détruit seulement les ScrollTriggers liés à ce gestionnaire
    */
   destroyScrollTriggers() {
-    // Récupère toutes les slides interactives (incluant firstSlide, excluant lastSlide)
-    const allInteractiveSlides = [...this.sliderItems];
-    if (this.firstSlide) {
-      allInteractiveSlides.push(this.firstSlide);
-    }
-    
+    const allInteractiveSlides = this.getInteractiveSlides();
     ScrollTrigger.getAll().forEach(trigger => {
       if (trigger.vars.trigger && allInteractiveSlides.includes(trigger.vars.trigger)) {
         trigger.kill();
       }
     });
+  }
+
+  getInteractiveSlides() {
+    const arr = [...this.sliderItems];
+    if (this.firstSlide && !arr.includes(this.firstSlide)) arr.unshift(this.firstSlide);
+    return arr;
   }
 
   /**
