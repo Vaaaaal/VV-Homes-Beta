@@ -8,7 +8,6 @@ import { SliderManager } from './slider-manager.js';
 import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
-import { RichTextManager } from './rich-text-manager.js';
 import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
 import logger from './logger.js';
@@ -38,7 +37,6 @@ export class VVPlaceApp {
     this.menuManager = null;             // Gestion du menu
     this.menuFallback = null;            // Menu de fallback
     this.modalManager = null;            // Gestion des modales
-    this.richTextManager = null;         // Gestion du texte riche
   }
 
   /**
@@ -159,19 +157,14 @@ export class VVPlaceApp {
       logger.debug(' ModalManager ignoré - éléments requis non trouvés');
     }
     
-    // 7. Initialise le gestionnaire de texte riche si les éléments requis existent
-    if (this.checkRichTextElements()) {
-      try {
-        logger.debug(' Initialisation du RichTextManager...');
-        this.richTextManager = new RichTextManager();
-        this.richTextManager.init();
-        logger.success(' RichTextManager initialisé avec succès');
-      } catch (error) {
-        logger.error(' Erreur lors de l\'initialisation du RichTextManager:', error);
-        this.richTextManager = null;
+    // 7. Traitement léger du texte riche (inline utilitaire)
+    try {
+      if (window.WindowUtils) {
+        const count = WindowUtils.enhanceRichTextFigures();
+        if (count) logger.success(` Traitement texte riche: ${count} figure(s) enrichie(s)`);
       }
-    } else {
-      logger.debug(' RichTextManager ignoré - éléments requis non trouvés');
+    } catch(e) {
+      logger.warn(' Enhancement texte riche ignoré');
     }
     
     logger.success(' VVPlaceApp - Initialisation terminée');
@@ -185,9 +178,7 @@ export class VVPlaceApp {
     logger.debug(' VVPlaceApp - Début de la destruction');
     
     // Détruire dans l'ordre inverse de l'initialisation
-    if (this.richTextManager) {
-      this.richTextManager.destroy();
-    }
+  // plus de gestionnaire rich text dédié (inline utilitaire)
     
     if (this.modalManager) {
       this.modalManager.destroy();
@@ -282,19 +273,7 @@ export class VVPlaceApp {
     return true;
   }
 
-  /**
-   * Vérifie la présence des éléments DOM requis pour le texte riche
-   * @returns {boolean} true si des éléments text-rich-text sont présents
-   */
-  checkRichTextElements() {
-    const richTextElements = document.querySelectorAll('.text-rich-text');
-    
-    if (richTextElements.length === 0) {
-      return false;
-    }
-    
-    return true;
-  }
+  // checkRichTextElements supprimé (traitement toujours safe en utilitaire)
   
   /**
    * Initialise le menu de fallback en cas d'échec du MenuManager principal
@@ -319,31 +298,13 @@ export class VVPlaceApp {
    * Contourne la restauration automatique du navigateur
    */
   emergencyScrollReset() {
-    logger.debug('🚨 VVPlaceApp: Reset d\'urgence du scroll...');
-    
-    // Reset immédiat et multiple UNIQUEMENT de la position
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.documentElement.scrollLeft = 0;
-    document.body.scrollTop = 0;
-    document.body.scrollLeft = 0;
-    
-    // Surveillances répétées pour contrer la restauration du navigateur
-    // SANS bloquer l'overflow - le LoaderManager s'en charge
-    const resetIntervals = [0, 10, 50, 100, 200, 500];
-    
-    resetIntervals.forEach((delay) => {
-      setTimeout(() => {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.documentElement.scrollLeft = 0;
-        document.body.scrollTop = 0;
-        document.body.scrollLeft = 0;
-        
-        logger.debug(`🚨 Reset d'urgence ${delay}ms: scroll forcé à 0`);
-      }, delay);
-    });
-    
-    logger.debug('🚨 Reset d\'urgence terminé - LoaderManager prend le relais');
+    logger.debug('🚨 VVPlaceApp: Reset d\'urgence (centralisé)');
+    if (window.WindowUtils && window.WindowUtils.resetScroll) {
+      window.WindowUtils.resetScroll();
+    } else {
+      // Fallback minimal
+      window.scrollTo(0,0);
+    }
+    logger.debug('🚨 Reset d\'urgence terminé');
   }
 }

@@ -2,8 +2,23 @@
 // GESTIONNAIRE DU MENU DE NAVIGATION
 // ==========================================
 import { CONFIG } from './config.js';
-import { RichTextManager } from './rich-text-manager.js';
 import logger from './logger.js';
+import { NavigationState } from './navigation-state.js';
+import { NavigationActiveState } from './navigation-active-state.js';
+
+// ==========================================
+// CONSTANTES & HELPERS INTERNES
+// ==========================================
+const CMS_MINIMUM_ELEMENTS = 20;   // Seuil minimum pour initialisation fonctionnelle
+const CMS_INITIAL_WAIT = 1000;     // Attente initiale avant premier comptage
+const CMS_MAX_WAIT = 6000;         // Temps max pour atteindre le seuil
+const FINDSWEET_MAX_WAIT = 8000;   // Timeout Finsweet
+const FINDSWEET_CHECK_INTERVAL = 200; // Intervalle de polling
+
+// Promesse de délai
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
+// Normalisation en tableau
+const toArray = (list) => Array.isArray(list) ? list : Array.from(list || []);
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -13,8 +28,6 @@ export class MenuManager {
   constructor(smoothScrollManager = null) {
     this.smoothScrollManager = smoothScrollManager;
     
-    // Gestionnaire de texte riche
-    this.richTextManager = new RichTextManager();
     
     // Éléments principaux du menu
     this.menu = document.querySelector(CONFIG.SELECTORS.MENU_WRAP);
@@ -29,12 +42,12 @@ export class MenuManager {
     // Boutons CMS dynamiques
     this.cmsButtons = [];
     
-    // Historique de navigation
-    this.navigationHistory = [];
-    
-    // Statuts actifs
-    this.activeElements = new Set(); // Ensemble des éléments actuellement actifs
-    this.currentActivePath = [];     // Chemin actuel des éléments actifs (hiérarchie)
+  // Historique & états actifs
+  this.navigationState = new NavigationState();
+  this.activeState = new NavigationActiveState(this.findButtonByPanelName.bind(this));
+
+  // Bind handlers réutilisés
+  this._onDocumentClick = this._onDocumentClick.bind(this);
   }
 
   // ==========================================
@@ -45,7 +58,7 @@ export class MenuManager {
    * Initialise le système de menu avec approche incrémentale
    */
   async init() {
-    logger.menu(' MenuManager - Début de l\'initialisation incrémentale');
+  logger.menu(' MenuManager - Début initialisation');
     
     if (!this.menu || !this.menuButton) {
       logger.error(' MenuManager - Éléments essentiels manquants:', {
@@ -56,14 +69,14 @@ export class MenuManager {
     }
     
     try {
-      logger.log('⏳ Attente de Finsweet Attributes...');
-      await this.waitForFinsweetAttributes();
-      logger.success(' Finsweet Attributes chargé');
+  logger.log('⏳ Attente Finsweet Attributes');
+  await this.waitForFinsweetAttributes();
+  logger.success(' Finsweet Attributes prêt');
 
-      logger.info(' Initialisation incrémentale des éléments CMS...');
-      await this.initIncrementalCMS();
+  logger.info(' Initialisation incrémentale CMS');
+  await this.initIncrementalCMS();
       
-      logger.success(' MenuManager - Initialisation terminée avec succès');
+  logger.success(' MenuManager - Initialisation OK');
       
     } catch (error) {
       logger.error(' MenuManager - Erreur lors de l\'initialisation:', error);
@@ -75,53 +88,39 @@ export class MenuManager {
    * Initialisation incrémentale des éléments CMS
    */
   async initIncrementalCMS() {
-    const MINIMUM_ELEMENTS = 20; // Seuil minimum pour démarrer
-    const INITIAL_WAIT = 1000;   // Attente initiale
-    const MAX_WAIT = 6000;       // Attente maximum
-    
-    logger.log(`🎯 Objectif initial : au moins ${MINIMUM_ELEMENTS} boutons CMS`);
-    
-    // Attendre un délai initial pour que les premiers éléments se chargent
-    await new Promise(resolve => setTimeout(resolve, INITIAL_WAIT));
+  logger.log(`🎯 Objectif initial : ≥ ${CMS_MINIMUM_ELEMENTS} boutons CMS`);
+  await delay(CMS_INITIAL_WAIT);
     
     // Obtenir les éléments actuels
     this.updateCMSButtons();
     const initialCount = this.cmsButtons.length;
     
-    logger.log(`� ${initialCount} boutons CMS détectés initialement`);
+  logger.log(`📌 ${initialCount} boutons CMS détectés initialement`);
     
-    if (initialCount >= MINIMUM_ELEMENTS) {
-      // On a assez d'éléments pour commencer
-      logger.success(' Seuil minimum atteint (${initialCount}/${MINIMUM_ELEMENTS})');
+    if (initialCount >= CMS_MINIMUM_ELEMENTS) {
+      logger.success(` Seuil minimum atteint (${initialCount}/${CMS_MINIMUM_ELEMENTS})`);
       this.initializeMenuWithCurrentElements();
       
       // Surveiller les nouveaux éléments en arrière-plan
       this.startIncrementalWatcher();
       
     } else {
-      // Pas assez d'éléments, attendre un peu plus
-      logger.log(`⏳ Pas assez d'éléments (${initialCount}/${MINIMUM_ELEMENTS}), attente supplémentaire...`);
-      
+      logger.log(`⏳ En attente (actuel ${initialCount}/${CMS_MINIMUM_ELEMENTS})...`);
       const startTime = Date.now();
-      while (Date.now() - startTime < MAX_WAIT) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
+      while (Date.now() - startTime < CMS_MAX_WAIT) {
+        await delay(500);
         this.updateCMSButtons();
         const currentCount = this.cmsButtons.length;
-        
         if (currentCount !== initialCount) {
-          logger.log(`� ${currentCount} boutons CMS détectés (+${currentCount - initialCount})`);
+          logger.log(`➕ ${currentCount} boutons CMS (Δ ${currentCount - initialCount})`);
         }
-        
-        if (currentCount >= MINIMUM_ELEMENTS) {
-          logger.success(' Seuil minimum atteint (${currentCount}/${MINIMUM_ELEMENTS})');
+        if (currentCount >= CMS_MINIMUM_ELEMENTS) {
+          logger.success(` Seuil minimum atteint (${currentCount}/${CMS_MINIMUM_ELEMENTS})`);
           this.initializeMenuWithCurrentElements();
           this.startIncrementalWatcher();
           return;
         }
       }
-      
-      // Timeout atteint, initialiser avec ce qu'on a
       logger.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
       this.initializeMenuWithCurrentElements();
       this.startIncrementalWatcher();
@@ -132,12 +131,12 @@ export class MenuManager {
    * Met à jour la liste des boutons CMS
    */
   updateCMSButtons() {
-    const newButtons = Array.from(document.querySelectorAll('.menu_panel_collection_item.is-btn'));
+    const newButtons = toArray(document.querySelectorAll('.menu_panel_collection_item.is-btn'));
     const previousCount = this.cmsButtons.length;
     this.cmsButtons = newButtons;
     
     if (newButtons.length !== previousCount && previousCount > 0) {
-      logger.info(' Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}');
+      logger.info(` Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}`);
     }
     
     return newButtons;
@@ -147,7 +146,7 @@ export class MenuManager {
    * Initialise le menu avec les éléments actuellement disponibles
    */
   initializeMenuWithCurrentElements() {
-    logger.log(`🎨 Initialisation du menu avec ${this.cmsButtons.length} boutons`);
+  logger.log(`🎨 Initialisation du menu (${this.cmsButtons.length} boutons)`);
     
     // Initialiser les positions et événements
     this.initPanelPositions();
@@ -161,10 +160,13 @@ export class MenuManager {
       logger.success(' Cartes de review randomisées');
     });
     
-    // Initialiser le Rich Text Manager
-    this.initRichTextManager().then(() => {
-      logger.success(' Rich Text Manager initialisé');
-    });
+    // Traitement texte riche léger (utilitaire central)
+    try {
+      if (window.WindowUtils) {
+        const c = WindowUtils.enhanceRichTextFigures();
+        if (c) logger.success(` Rich text enrichi (${c})`);
+      }
+    } catch(_) {}
     
     logger.success(' Menu initialisé avec les éléments actuels');
   }
@@ -180,7 +182,7 @@ export class MenuManager {
       }
     });
     
-    logger.log(`� Événements attachés à ${this.cmsButtons.length} boutons`);
+  logger.log(`🔗 Événements attachés (${this.cmsButtons.length})`);
   }
 
   /**
@@ -274,8 +276,8 @@ export class MenuManager {
    * Attend que Finsweet Attributes soit chargé avec optimisation
    */
   async waitForFinsweetAttributes() {
-    const maxWaitTime = 8000; // 8 secondes max
-    const checkInterval = 200; // Vérifier toutes les 200ms
+  const maxWaitTime = FINDSWEET_MAX_WAIT; // 8 secondes max
+  const checkInterval = FINDSWEET_CHECK_INTERVAL; // Vérifier toutes les 200ms
     const startTime = Date.now();
     
     // Vérification immédiate
@@ -400,19 +402,18 @@ export class MenuManager {
    */
   initMenuLinkEvents() {
     // Écouter les clics sur tous les éléments avec data-menu-link
-    document.addEventListener('click', (e) => {
-      const menuLinkElement = e.target.closest('[data-menu-link]');
-      
-      if (menuLinkElement) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const targetPanelName = menuLinkElement.dataset.menuLink;
-        if (targetPanelName) {
-          this.navigateToPanel(targetPanelName);
-        }
-      }
-    });
+    document.addEventListener('click', this._onDocumentClick);
+  }
+
+  _onDocumentClick(e) {
+    const menuLinkElement = e.target.closest('[data-menu-link]');
+    if (!menuLinkElement) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const targetPanelName = menuLinkElement.dataset.menuLink;
+    if (targetPanelName) {
+      this.navigateToPanel(targetPanelName);
+    }
   }
 
   /**
@@ -475,19 +476,12 @@ export class MenuManager {
     // Ouvrir séquentiellement chaque panel du chemin
     for (let i = 0; i < ancestorPath.length; i++) {
       const panelName = ancestorPath[i];
-      
-      // Vérifier si ce panel est déjà ouvert (présent dans l'historique)
-      if (!this.navigationHistory.includes(panelName)) {
-        // Ajouter à l'historique et ouvrir le panel
-        this.addToNavigationHistory(panelName);
+      if (!this.navigationState.includes(panelName)) {
+        this.navigationState.push(panelName);
         this.showPanel(panelName);
-        
-        // Mettre à jour les états actifs pour ce panel
-        this.updateActiveStatesOnOpen(panelName);
-        
-        // Attendre que l'animation soit terminée avant de passer au suivant
-        if (i < ancestorPath.length - 1) { // Pas d'attente pour le dernier
-          await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000));
+  this.activeState.onOpen(panelName);
+        if (i < ancestorPath.length - 1) {
+          await new Promise(res => setTimeout(res, CONFIG.ANIMATION.DURATION * 1000));
         }
       }
     }
@@ -504,44 +498,27 @@ export class MenuManager {
     // Trouver le point de divergence entre l'historique actuel et le nouveau chemin
     let divergenceIndex = -1;
     
-    for (let i = 0; i < Math.min(this.navigationHistory.length, newPath.length); i++) {
-      if (this.navigationHistory[i] !== newPath[i]) {
+    for (let i = 0; i < Math.min(this.navigationState.history.length, newPath.length); i++) {
+      if (this.navigationState.history[i] !== newPath[i]) {
         divergenceIndex = i;
         break;
       }
     }
 
-    // Si pas de divergence mais l'historique est plus long, commencer la fermeture après le dernier élément commun
-    if (divergenceIndex === -1 && this.navigationHistory.length > newPath.length) {
+    if (divergenceIndex === -1 && this.navigationState.history.length > newPath.length) {
       divergenceIndex = newPath.length;
     }
 
-    // S'il y a des panels à fermer
-    if (divergenceIndex !== -1 && divergenceIndex < this.navigationHistory.length) {
-      const panelsToClose = this.navigationHistory.slice(divergenceIndex);
-      
-      // Mettre à jour l'historique
-      this.navigationHistory = this.navigationHistory.slice(0, divergenceIndex);
+    if (divergenceIndex !== -1 && divergenceIndex < this.navigationState.history.length) {
+      const panelsToClose = this.navigationState.history.slice(divergenceIndex);
+      this.navigationState.history = this.navigationState.history.slice(0, divergenceIndex);
 
       // Mettre à jour les états actifs
       if (panelsToClose.length > 0) {
-        this.updateActiveStatesOnClose(panelsToClose[0]);
+  this.activeState.onClose(panelsToClose[0]);
       }
 
-      // Récupérer les éléments DOM
-      const panelElements = panelsToClose
-        .map(panelName => document.querySelector(`.menu_panel_item[data-name="${panelName}"]`))
-        .filter(panel => panel !== null);
-
-      if (panelElements.length > 0) {
-        // Fermer dans l'ordre inverse (du plus profond au moins profond)
-        const reversedPanels = [...panelElements].reverse();
-        
-        // Attendre que toutes les fermetures soient terminées
-        await new Promise(resolve => {
-          this.animatePanelsSequentially(reversedPanels, resolve);
-        });
-      }
+  await new Promise(resolve => this.closePanels(panelsToClose, { animate: true, onComplete: resolve }));
     }
   }
 
@@ -551,7 +528,7 @@ export class MenuManager {
    */
   openPanelByLink(panelName) {
     // Vérifier si le panel est déjà dans l'historique (ancêtre)
-    const existingIndex = this.navigationHistory.indexOf(panelName);
+  const existingIndex = this.navigationState.history.indexOf(panelName);
     
     if (existingIndex !== -1) {
       // Le panel est un ancêtre : ne rien faire
@@ -604,9 +581,9 @@ export class MenuManager {
     }
 
     // Si il y a des panels ouverts dans l'historique, les fermer d'abord
-    if (this.navigationHistory.length > 0) {
+  if (this.navigationState.history.length > 0) {
       // Récupérer tous les panels ouverts
-      const allOpenPanels = this.navigationHistory
+  const allOpenPanels = this.navigationState.history
         .map(panelName => document.querySelector(`.menu_panel_item[data-name="${panelName}"]`))
         .filter(panel => panel !== null);
 
@@ -632,9 +609,9 @@ export class MenuManager {
           }, 0.2);
         }
 
-        // Réinitialiser l'historique et les états actifs immédiatement
-        this.clearNavigationHistory();
-        this.clearAllActiveStates();
+  // Réinitialiser l'historique et les états actifs immédiatement
+  this.navigationState.clear();
+  this.activeState.clearAll();
         return;
       }
     }
@@ -682,22 +659,24 @@ export class MenuManager {
    * @param {HTMLElement} btn - Le bouton cliqué
    */
   openPanel(btn) {
-    if (!btn.dataset.name) {
-      return;
-    }
-
+    if (!btn?.dataset?.name) return;
     const panelName = btn.dataset.name;
-    
-    // Vérifier si le panel est déjà dans l'historique (ancêtre)
-    const existingIndex = this.navigationHistory.indexOf(panelName);
-    
-    if (existingIndex !== -1) {
-      // Le panel est un ancêtre : ne rien faire
-      return;
-    }
-
-    // Nouveau panel : vérifier s'il a des frères à fermer
+  if (this.navigationState.includes(panelName)) return;
     this.handleSiblingLogic(panelName);
+  }
+
+  // ==========================================
+  // HELPERS PANELS / HISTORIQUE
+  // ==========================================
+  getPanel(name) { return document.querySelector(`.menu_panel_item[data-name="${name}"]`); }
+  closePanels(panelNames = [], { animate = true, onComplete } = {}) {
+    const elements = panelNames.map(n => this.getPanel(n)).filter(Boolean).reverse();
+    if (!elements.length) { onComplete && onComplete(); return; }
+    if (!animate) {
+      elements.forEach(p => { gsap.set(p, { xPercent: -101 }); const m = p.querySelector('.menu_panel_item_middle'); if (m) m.scrollTop = 0; });
+      onComplete && onComplete(); return;
+    }
+    this.animatePanelsSequentially(elements, onComplete);
   }
 
   /**
@@ -735,19 +714,19 @@ export class MenuManager {
     
     if (!parentName) {
       // Niveau racine : fermer tout l'historique si nécessaire
-      if (this.navigationHistory.length > 0) {
+  if (this.navigationState.history.length > 0) {
         return {
           ancestorName: null,
-          siblingsToClose: [...this.navigationHistory]
+      siblingsToClose: [...this.navigationState.history]
         };
       }
       return null;
     }
     
     // Vérifier si le parent est dans l'historique
-    if (this.navigationHistory.includes(parentName)) {
-      const parentIndex = this.navigationHistory.indexOf(parentName);
-      const siblingsToClose = this.navigationHistory.slice(parentIndex + 1);
+    if (this.navigationState.includes(parentName)) {
+  const parentIndex = this.navigationState.history.indexOf(parentName);
+  const siblingsToClose = this.navigationState.history.slice(parentIndex + 1);
       
       if (siblingsToClose.length > 0) {
         return {
@@ -767,36 +746,15 @@ export class MenuManager {
    * @param {string} newPanelName - Nouveau panel à ouvrir
    */
   closeSiblingsAndOpenNew(siblingsToClose, ancestorName, newPanelName) {
-    // Récupérer les éléments DOM à fermer
-    const siblingElements = siblingsToClose
-      .map(siblingName => document.querySelector(`.menu_panel_item[data-name="${siblingName}"]`))
-      .filter(panel => panel !== null);
-
-    if (siblingElements.length === 0) {
-      this.navigateToNewPanel(newPanelName);
-      return;
-    }
-
-    // Mettre à jour l'historique
+    if (!siblingsToClose.length) { this.navigateToNewPanel(newPanelName); return; }
     if (ancestorName) {
-      const ancestorIndex = this.navigationHistory.indexOf(ancestorName);
-      if (ancestorIndex !== -1) {
-        this.navigationHistory = this.navigationHistory.slice(0, ancestorIndex + 1);
-      }
+  const ancestorIndex = this.navigationState.history.indexOf(ancestorName);
+  if (ancestorIndex !== -1) this.navigationState.history = this.navigationState.history.slice(0, ancestorIndex + 1);
     } else {
-      this.navigationHistory = [];
+  this.navigationState.clear();
     }
-
-    // Mettre à jour les états actifs après modification de l'historique
-    if (siblingsToClose.length > 0) {
-      this.updateActiveStatesOnClose(siblingsToClose[0]);
-    }
-
-    // Fermer les panels puis ouvrir le nouveau
-    const reversedSiblings = [...siblingElements].reverse();
-    this.animatePanelsSequentially(reversedSiblings, () => {
-      this.navigateToNewPanel(newPanelName);
-    });
+  this.activeState.onClose(siblingsToClose[0]);
+    this.closePanels(siblingsToClose, { animate: true, onComplete: () => this.navigateToNewPanel(newPanelName) });
   }
 
   /**
@@ -804,25 +762,16 @@ export class MenuManager {
    * @param {string} panelName - Le data-name du panel
    * @returns {HTMLElement|null} - Le bouton trouvé ou null
    */
-  findButtonByPanelName(panelName) {
-    return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null;
-  }
+  findButtonByPanelName(panelName) { return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null; }
 
   /**
    * Navigue vers un nouveau panel
    * @param {string} panelName - Le data-name du panel
    */
   navigateToNewPanel(panelName) {
-    // Ajouter à l'historique
     this.addToNavigationHistory(panelName);
-    
-    // Ouvrir le panel
     this.showPanel(panelName);
-    
-    // Mettre à jour les états actifs
-    this.updateActiveStatesOnOpen(panelName);
-    
-    // Mettre à jour la visibilité des boutons "exit all"
+    this.activeState.onOpen(panelName);
     this.updateExitAllButtonsVisibility();
   }
 
@@ -832,29 +781,15 @@ export class MenuManager {
    */
   showPanel(panelName) {
     const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
-    
-    if (!panel) {
-      return;
-    }
-
-    // Animer l'ouverture du panel
-    gsap.to(panel, {
-      duration: CONFIG.ANIMATION.DURATION,
-      ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      xPercent: 0,
-    });
+    if (!panel) return;
+    gsap.to(panel, { duration: CONFIG.ANIMATION.DURATION, ease: CONFIG.ANIMATION.EASE.POWER2.OUT, xPercent: 0 });
   }
 
   /**
    * Ajoute un panel à l'historique
    * @param {string} panelName - Le data-name du panel
    */
-  addToNavigationHistory(panelName) {
-    // Éviter les doublons consécutifs
-    if (this.navigationHistory[this.navigationHistory.length - 1] !== panelName) {
-      this.navigationHistory.push(panelName);
-    }
-  }
+  addToNavigationHistory(panelName) { this.navigationState.push(panelName); }
 
   /**
    * Ferme tous les panels ouverts et ferme complètement le menu
@@ -870,38 +805,33 @@ export class MenuManager {
    * Seul le dernier panel ouvert doit afficher son bouton "exit all"
    */
   updateExitAllButtonsVisibility() {
-    // Cacher tous les boutons "exit all" d'abord
-    this.menuExitAll.forEach(exitAllBtn => {
-      gsap.set(exitAllBtn, {
+    // Déterminer le panel cible (dernier de l'historique)
+    const lastPanelName = this.navigationState.current();
+    let targetExitAll = null;
+    if (lastPanelName) {
+      const lastPanel = document.querySelector(`.menu_panel_item[data-name="${lastPanelName}"]`);
+      if (lastPanel) targetExitAll = lastPanel.querySelector(CONFIG.SELECTORS.MENU_EXIT_ALL);
+    }
+
+    // Masquer tous les autres boutons sans toucher au ciblé (évite race condition)
+    this.menuExitAll.forEach(btn => {
+      if (btn === targetExitAll) return; // ne pas lancer un fade-out sur le ciblé
+      gsap.killTweensOf(btn);
+      gsap.to(btn, {
         opacity: 0,
-        duration: 0.6,
+        duration: 0.2,
         ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-        onComplete: () => {
-          exitAllBtn.style.display = 'none';
-        }
+        onComplete: () => { btn.style.display = 'none'; }
       });
     });
 
-    // Si aucun panel n'est ouvert, ne pas afficher de bouton
-    if (this.navigationHistory.length === 0) {
-      return;
-    }
+    // Si aucun panel (au niveau racine) on pourrait afficher le bouton du premier panel si désiré
+    if (!targetExitAll) return; // rien à afficher
 
-    // Afficher le bouton "exit all" uniquement sur le dernier panel ouvert
-    const lastPanelName = this.navigationHistory[this.navigationHistory.length - 1];
-    const lastPanel = document.querySelector(`.menu_panel_item[data-name="${lastPanelName}"]`);
-    
-    if (lastPanel) {
-      const exitAllBtn = lastPanel.querySelector(CONFIG.SELECTORS.MENU_EXIT_ALL);
-      if (exitAllBtn) {
-        exitAllBtn.style.display = 'block';
-        gsap.set(exitAllBtn, {
-          opacity: 1,
-          duration: 0.6,
-          ease: CONFIG.ANIMATION.EASE.POWER2.OUT
-        });
-      }
-    }
+    // Afficher / réanimer le bouton ciblé
+    gsap.killTweensOf(targetExitAll);
+    targetExitAll.style.display = 'block';
+    gsap.to(targetExitAll, { opacity: 1, duration: 0.25, ease: CONFIG.ANIMATION.EASE.POWER2.OUT });
   }
 
   /**
@@ -915,43 +845,24 @@ export class MenuManager {
     }
 
     // Trouver l'index du panel dans l'historique
-    const panelIndex = this.navigationHistory.indexOf(panelName);
+  const panelIndex = this.navigationState.history.indexOf(panelName);
     
     if (panelIndex === -1) {
       return false;
     }
 
     // Récupérer tous les panels à fermer (le panel et ses descendants)
-    const panelsToClose = this.navigationHistory.slice(panelIndex);
+  const panelsToClose = this.navigationState.history.slice(panelIndex);
     
     // Mettre à jour l'historique en supprimant le panel et ses descendants
-    this.navigationHistory = this.navigationHistory.slice(0, panelIndex);
+  this.navigationState.history = this.navigationState.history.slice(0, panelIndex);
 
     // Mettre à jour les états actifs
-    this.updateActiveStatesOnClose(panelName);
+    this.activeState.onClose(panelName);
 
-    // Récupérer les éléments DOM pour les panels à fermer
-    const panelElements = panelsToClose
-      .map(closePanelName => document.querySelector(`.menu_panel_item[data-name="${closePanelName}"]`))
-      .filter(panel => panel !== null);
-
-    if (panelElements.length === 0) {
-      return false;
-    }
-
-    // Inverser l'ordre pour commencer par le dernier panel (le plus profond)
-    const reversedPanels = [...panelElements].reverse();
-
-    // Animer séquentiellement - chaque panel attend que le précédent soit terminé
-    this.animatePanelsSequentially(reversedPanels, () => {
-      // Mettre à jour la visibilité des boutons après fermeture
-      this.updateExitAllButtonsVisibility();
-    });
-
-    // Mettre à jour immédiatement la visibilité des boutons
-    this.updateExitAllButtonsVisibility();
-
-    return true;
+  this.closePanels(panelsToClose, { animate: true, onComplete: () => this.updateExitAllButtonsVisibility() });
+  this.updateExitAllButtonsVisibility();
+  return true;
   }
 
   /**
@@ -960,46 +871,26 @@ export class MenuManager {
    * @param {Function} onComplete - Callback optionnel
    */
   animatePanelsSequentially(panels, onComplete = null, duration) {
-    if (panels.length === 0) {
-      if (onComplete) onComplete();
-      return;
-    }
-
-    // Fonction récursive pour animer un panel puis passer au suivant
-    const animateNextPanel = (index) => {
-      if (index >= panels.length) {
-        // Toutes les animations sont terminées
-        if (onComplete) onComplete();
-        return;
-      }
-
-      const panel = panels[index];
-      
+    if (!panels.length) { onComplete && onComplete(); return; }
+    const baseDur = duration || CONFIG.ANIMATION.DURATION;
+    panels.reduce((p, panel) => p.then(() => new Promise(res => {
       gsap.to(panel, {
-        duration: duration || CONFIG.ANIMATION.DURATION,
+        duration: baseDur,
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
         onComplete: () => {
-          // Animation terminée, passer au suivant
-          animateNextPanel(index + 1);
           const panelMiddle = panel.querySelector('.menu_panel_item_middle');
-          if (panelMiddle) {
-            panelMiddle.scrollTop = 0; // Réinitialiser le scroll du panel
-          }
+          if (panelMiddle) panelMiddle.scrollTop = 0;
+          res();
         }
       });
-    };
-
-    // Démarrer l'animation avec le premier panel
-    animateNextPanel(0);
+    })), Promise.resolve()).then(() => onComplete && onComplete());
   }
 
   /**
    * Réinitialise l'historique
    */
-  clearNavigationHistory() {
-    this.navigationHistory = [];
-  }
+  // (méthode legacy clearNavigationHistory retirée; utiliser navigationState.clear())
 
   /**
    * Remet tous les panels et l'overlay à leur état initial
@@ -1058,108 +949,32 @@ export class MenuManager {
    * Met à jour les statuts actifs de tous les éléments de navigation
    * en fonction de l'historique de navigation actuel
    */
-  updateActiveStates() {
-    // Effacer tous les états actifs précédents
-    this.clearAllActiveStates();
-    
-    // Construire le nouveau chemin actif basé sur l'historique
-    this.currentActivePath = [...this.navigationHistory];
-    
-    // Appliquer les états actifs pour chaque élément du chemin
-    this.currentActivePath.forEach((panelName, index) => {
-      this.setElementActiveState(panelName, true);
-      
-      // Marquer aussi le bouton qui mène à ce panel comme actif
-      const button = this.findButtonByPanelName(panelName);
-      if (button) {
-        this.setButtonActiveState(button, true);
-      }
-    });
-    
-    // Mettre à jour l'état du panel actuellement visible (le dernier dans l'historique)
-    if (this.navigationHistory.length > 0) {
-      const currentPanel = this.navigationHistory[this.navigationHistory.length - 1];
-      this.setCurrentPanelState(currentPanel);
-    }
-    
-    // Mettre à jour les états de fil d'Ariane
-    this.updateBreadcrumbStates();
-  }
+  updateActiveStates() { this.activeState.refreshStates(); }
 
   /**
    * Définit l'état actif d'un élément de navigation
    * @param {string} panelName - Le data-name du panel
    * @param {boolean} isActive - Si l'élément doit être actif
    */
-  setElementActiveState(panelName, isActive) {
-    const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
-    
-    if (!panel) return;
-    
-    if (isActive) {
-      panel.classList.add('is-active');
-      this.activeElements.add(panelName);
-    } else {
-      panel.classList.remove('is-active');
-      this.activeElements.delete(panelName);
-    }
-  }
+  // (setElementActiveState géré par NavigationActiveState)
 
   /**
    * Définit l'état actif d'un bouton de navigation
    * @param {HTMLElement} button - Le bouton à modifier
    * @param {boolean} isActive - Si le bouton doit être actif
    */
-  setButtonActiveState(button, isActive) {
-    if (!button) return;
-    
-    if (isActive) {
-      button.classList.add('is-active');
-    } else {
-      button.classList.remove('is-active');
-    }
-  }
+  // (setButtonActiveState géré par NavigationActiveState)
 
   /**
    * Met à jour l'état du panel actuellement visible
    * @param {string} panelName - Le data-name du panel actuel
    */
-  setCurrentPanelState(panelName) {
-    // Supprimer la classe 'is-current' de tous les panels
-    document.querySelectorAll('.menu_panel_item.is-current').forEach(panel => {
-      panel.classList.remove('is-current');
-    });
-    
-    // Ajouter la classe 'is-current' au panel actuel
-    const currentPanel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
-    if (currentPanel) {
-      currentPanel.classList.add('is-current');
-    }
-  }
+  // (setCurrentPanelState géré par NavigationActiveState)
 
   /**
    * Efface tous les états actifs
    */
-  clearAllActiveStates() {
-    // Effacer les classes des panels
-    document.querySelectorAll('.menu_panel_item.is-active').forEach(panel => {
-      panel.classList.remove('is-active');
-    });
-    
-    // Effacer les classes des boutons
-    this.cmsButtons.forEach(button => {
-      button.classList.remove('is-active', 'is-breadcrumb');
-    });
-    
-    // Effacer la classe current
-    document.querySelectorAll('.menu_panel_item.is-current').forEach(panel => {
-      panel.classList.remove('is-current');
-    });
-    
-    // Vider les ensembles de tracking
-    this.activeElements.clear();
-    this.currentActivePath = [];
-  }
+  clearAllActiveStates() { this.activeState.clearAll(); }
 
   /**
    * Vérifie si un élément est dans le chemin actif
@@ -1167,7 +982,7 @@ export class MenuManager {
    * @returns {boolean} - True si l'élément est actif
    */
   isElementActive(panelName) {
-    return this.activeElements.has(panelName);
+  return this.activeState.isActive(panelName);
   }
 
   /**
@@ -1176,8 +991,7 @@ export class MenuManager {
    * @returns {boolean} - True si c'est le panel actuel
    */
   isCurrentPanel(panelName) {
-    return this.navigationHistory.length > 0 && 
-           this.navigationHistory[this.navigationHistory.length - 1] === panelName;
+  return this.navigationState.current() === panelName;
   }
 
   /**
@@ -1185,40 +999,24 @@ export class MenuManager {
    * @param {string} panelName - Le data-name du panel
    * @returns {string[]} - Array des ancêtres actifs
    */
-  getActiveAncestors(panelName) {
-    const panelIndex = this.currentActivePath.indexOf(panelName);
-    if (panelIndex === -1) return [];
-    
-    return this.currentActivePath.slice(0, panelIndex);
-  }
+  getActiveAncestors(panelName) { const idx = this.activeState.currentActivePath.indexOf(panelName); return idx === -1 ? [] : this.activeState.currentActivePath.slice(0, idx); }
 
   /**
    * Met à jour les états actifs lors de l'ouverture d'un panel
    * @param {string} panelName - Le data-name du panel ouvert
    */
-  updateActiveStatesOnOpen(panelName) {
-    // Ajouter le nouveau panel au chemin actif s'il n'y est pas déjà
-    if (!this.currentActivePath.includes(panelName)) {
-      this.currentActivePath.push(panelName);
-    }
-    
-    // Mettre à jour tous les états
-    this.updateActiveStates();
-  }
+  // (updateActiveStatesOnOpen/Close retirés au profit de NavigationActiveState)
 
-  /**
-   * Met à jour les états actifs lors de la fermeture d'un panel
-   * @param {string} panelName - Le data-name du panel fermé
-   */
-  updateActiveStatesOnClose(panelName) {
-    // Supprimer le panel et ses descendants du chemin actif
-    const panelIndex = this.currentActivePath.indexOf(panelName);
-    if (panelIndex !== -1) {
-      this.currentActivePath = this.currentActivePath.slice(0, panelIndex);
+  // ==========================================
+  // CYCLE DE VIE
+  // ==========================================
+  destroy() {
+    document.removeEventListener('click', this._onDocumentClick);
+    if (this.incrementalObserver) {
+      try { this.incrementalObserver.disconnect(); } catch { /* noop */ }
+      this.incrementalObserver = null;
     }
-    
-    // Mettre à jour tous les états
-    this.updateActiveStates();
+    clearTimeout(this.updateTimeout);
   }
 
   // ==========================================
@@ -1232,11 +1030,10 @@ export class MenuManager {
    */
   getNavigationState() {
     return {
-      navigationHistory: [...this.navigationHistory],
-      currentActivePath: [...this.currentActivePath],
-      activeElements: Array.from(this.activeElements),
-      currentPanel: this.navigationHistory.length > 0 ? 
-        this.navigationHistory[this.navigationHistory.length - 1] : null,
+      navigationHistory: this.navigationState.snapshot(),
+      currentActivePath: this.activeState.snapshotPath(),
+      activeElements: Array.from(this.activeState.activeElements),
+      currentPanel: this.activeState.current(),
       isMenuOpen: this.menu?.classList.contains("is-active") || false
     };
   }
@@ -1246,31 +1043,12 @@ export class MenuManager {
    * @param {string} panelName - Le data-name du panel
    * @param {boolean} isInBreadcrumb - Si l'élément fait partie du fil d'Ariane
    */
-  setBreadcrumbState(panelName, isInBreadcrumb) {
-    const button = this.findButtonByPanelName(panelName);
-    if (button) {
-      if (isInBreadcrumb) {
-        button.classList.add('is-breadcrumb');
-      } else {
-        button.classList.remove('is-breadcrumb');
-      }
-    }
-  }
+  setBreadcrumbState() { /* géré par NavigationActiveState */ }
 
   /**
    * Met à jour les états de fil d'Ariane pour tous les éléments
    */
-  updateBreadcrumbStates() {
-    // Effacer tous les états de breadcrumb existants
-    this.cmsButtons.forEach(button => {
-      button.classList.remove('is-breadcrumb');
-    });
-
-    // Marquer tous les éléments du chemin actuel sauf le dernier comme breadcrumb
-    for (let i = 0; i < this.currentActivePath.length - 1; i++) {
-      this.setBreadcrumbState(this.currentActivePath[i], true);
-    }
-  }
+  updateBreadcrumbStates() { /* géré par NavigationActiveState */ }
 
   /**
    * Attribue aléatoirement la classe "is-reverse" à un nombre aléatoire de cartes
@@ -1369,23 +1147,5 @@ export class MenuManager {
     
   }
 
-  /**
-   * Initialise le Rich Text Manager après que tous les éléments Finsweet soient chargés
-   */
-  async initRichTextManager() {
-    try {
-      await this.richTextManager.init();
-    } catch (error) {
-    }
-  }
-
-  /**
-   * Réinitialise le Rich Text Manager (utile après ajout dynamique de contenu)
-   */
-  async reinitRichTextManager() {
-    try {
-      await this.richTextManager.reinit();
-    } catch (error) {
-    }
-  }
+  // Méthodes RichTextManager supprimées (intégrées à WindowUtils)
 }

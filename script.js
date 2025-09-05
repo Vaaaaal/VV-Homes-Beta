@@ -4,7 +4,6 @@
 import { VVPlaceApp } from './app.js';
 import './crash-detector.js';      // Détecteur de crash automatique
 import './emergency-mode.js';      // Mode d'urgence
-import './orientation-tester.js';  // Testeur d'orientation
 import logger from './logger.js';
 
 /**
@@ -18,7 +17,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   logger.log('🚨 Outils d\'urgence chargés:');
   logger.log('  - emergencyMode.activate() : Mode d\'urgence');
   logger.log('  - crashDetector.generateCrashReport() : Rapport de crash');
-  logger.log('  - orientationTester.runOrientationStressTest() : Test d\'orientation');
   logger.log('  - debugVV.checkCriticalIssues() : Diagnostic approfondi');
   
   // Délai réduit car l'approche incrémentale est plus robuste
