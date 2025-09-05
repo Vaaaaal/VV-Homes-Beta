@@ -192,7 +192,7 @@ const WindowUtils = {
     isMobilePortrait,
     isMobileLandscape,
     isTablet,
-    isDesktop: isDesktop,
+    isDesktop,
     
     // Event handling
     debounce,
