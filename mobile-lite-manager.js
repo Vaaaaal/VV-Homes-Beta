@@ -74,11 +74,29 @@ export class MobileLiteManager {
    * Vérifie si un changement de mode est nécessaire
    */
   checkModeChange() {
-    const isMobileLite = window.innerWidth < this.breakpoint;
+    const currentWidth = window.innerWidth;
+    const isMobileLite = currentWidth < this.breakpoint;
     const newMode = isMobileLite ? 'lite' : 'full';
     
+    // Seulement recharger si on change vraiment de catégorie (mobile ↔ desktop)
     if (newMode !== this.currentMode) {
-      logger.info(` Changement de mode: ${this.currentMode} → ${newMode}`);
+      const wasInLiteRange = this.currentMode === 'lite';
+      const nowInLiteRange = newMode === 'lite';
+      
+      // Si on était en lite et qu'on reste en lite (rotation mobile), pas de rechargement
+      if (wasInLiteRange && nowInLiteRange) {
+        logger.debug(` Rotation mobile détectée (${currentWidth}px) - pas de rechargement`);
+        return;
+      }
+      
+      // Si on était en full et qu'on reste en full (resize desktop), pas de rechargement
+      if (!wasInLiteRange && !nowInLiteRange) {
+        logger.debug(` Resize desktop détecté (${currentWidth}px) - pas de rechargement`);
+        return;
+      }
+      
+      // Changement réel mobile ↔ desktop
+      logger.info(` Changement de mode: ${this.currentMode} → ${newMode} (${currentWidth}px)`);
       this.currentMode = newMode;
       this.handleModeChange(newMode);
     }

@@ -148,6 +148,22 @@ export class SmoothScrollManagerLite {
   }
 
   /**
+   * Désactive le scroll (pour compatibilité avec MenuManager)
+   */
+  disableScroll() {
+    document.body.style.overflow = 'hidden';
+    logger.debug(' SmoothScrollManagerLite: scroll désactivé');
+  }
+
+  /**
+   * Réactive le scroll (pour compatibilité avec MenuManager)
+   */
+  enableScroll() {
+    document.body.style.overflow = '';
+    logger.debug(' SmoothScrollManagerLite: scroll réactivé');
+  }
+
+  /**
    * Détruit le gestionnaire
    */
   destroy() {
