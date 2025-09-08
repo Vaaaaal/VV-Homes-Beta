@@ -106,6 +106,15 @@ function isDesktop() {
 }
 
 /**
+ * Check if device is in mobile lite mode (performance optimization)
+ * Disables heavy features below 768px
+ * @returns {boolean}
+ */
+function isMobileLite() {
+    return window.innerWidth < 768;
+}
+
+/**
  * Get current breakpoint name
  * @returns {string} The current breakpoint name
  */
@@ -193,6 +202,7 @@ const WindowUtils = {
     isMobileLandscape,
     isTablet,
     isDesktop,
+    isMobileLite,
     
     // Event handling
     debounce,
@@ -272,6 +282,40 @@ WindowUtils.enhanceRichTextFigures = function enhanceRichTextFigures() {
         });
     });
     return processed;
+};
+
+// Helper pour organiser les slides (utilisable même sans SliderManager)
+WindowUtils.setupSliderOrder = function setupSliderOrder() {
+    const sliderItems = Array.from(document.querySelectorAll('.slider-panel_item')).filter(el => !el.classList.contains('is-last'));
+    const lastSlide = document.querySelector('.slider-panel_item.is-last');
+    const firstSlide = document.querySelector('.slider-panel_item.is-first');
+    const sliderList = document.querySelector('.slider-panel_list');
+    
+    if (!sliderList || sliderItems.length === 0) {
+        return false;
+    }
+    
+    // Trier par data-slider-order
+    const sorted = sliderItems.sort((a, b) => {
+        const orderA = parseInt(a.dataset.sliderOrder) || 0;
+        const orderB = parseInt(b.dataset.sliderOrder) || 0;
+        return orderA - orderB;
+    });
+    
+    // Réorganiser dans le DOM
+    sorted.forEach((item) => sliderList.appendChild(item));
+    
+    if (lastSlide) {
+        sliderList.appendChild(lastSlide);
+    }
+    
+    if (firstSlide && sorted.length > 0) {
+        firstSlide.dataset.sliderOrder = 0;
+        firstSlide.dataset.sliderCategory = sorted[0].dataset.sliderCategory;
+        sliderList.prepend(firstSlide);
+    }
+    
+    return true;
 };
 
 // Exposer les nouveaux helpers globalement (si déjà exporté, simplement étendu)

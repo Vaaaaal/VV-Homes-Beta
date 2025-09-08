@@ -2,14 +2,17 @@
 // CONTRÔLEUR PRINCIPAL DE L'APPLICATION
 // ==========================================
 import { LoaderManager } from './loader-manager.js';
+import { LoaderManagerLite } from './loader-manager-lite.js';
 import { OrientationManager } from './orientation-manager.js';
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
+import { SmoothScrollManagerLite } from './smooth-scroll-manager-lite.js';
 import { SliderManager } from './slider-manager.js';
 import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
 import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
+import { MobileLiteManager } from './mobile-lite-manager.js';
 import logger from './logger.js';
 
 
@@ -24,8 +27,8 @@ if (window.ScrollTrigger && ScrollTrigger.config) {
 /**
  * Classe principale qui orchestre toute l'application VV Place
  * Initialise et coordonne tous les gestionnaires :
- * - Scroll fluide
- * - Slider horizontal
+ * - Scroll fluide (normal ou lite selon la taille d'écran)
+ * - Slider horizontal (désactivé en mobile lite)
  * - Menu de navigation
  * - Modales
  * - Texte riche
@@ -33,16 +36,22 @@ if (window.ScrollTrigger && ScrollTrigger.config) {
  */
 export class VVPlaceApp {
   constructor() {
+    // Détection du mode mobile lite
+    this.isMobileLite = window.WindowUtils ? window.WindowUtils.isMobileLite() : window.innerWidth < 768;
+    
     // Gestionnaire de loader (initialisé en premier)
     this.loaderManager = null;
     
     // Gestionnaire centralisé d'orientation (initialisé en premier)
     this.orientationManager = null;
     
+    // Gestionnaire du mode mobile lite
+    this.mobileLiteManager = null;
+    
     // Références aux différents gestionnaires
     this.smoothScrollManager = null;      // Gestion du scroll fluide
-    this.sliderManager = null;           // Gestion du slider principal
-    this.swiperManager = null;           // Gestion des swipers
+    this.sliderManager = null;           // Gestion du slider principal (desktop seulement)
+    this.swiperManager = null;           // Gestion des swipers (desktop seulement en mode lite)
     this.menuManager = null;             // Gestion du menu
     this.menuFallback = null;            // Menu de fallback
     this.modalManager = null;            // Gestion des modales
@@ -55,6 +64,13 @@ export class VVPlaceApp {
    */
   init() {
     logger.loading('VVPlaceApp - Début de l\'initialisation');
+    
+    // Log du mode détecté
+    if (this.isMobileLite) {
+      logger.info('📱 Mode MOBILE LITE activé (< 768px) - Fonctionnalités simplifiées');
+    } else {
+      logger.info('🖥️ Mode DESKTOP activé - Toutes les fonctionnalités');
+    }
     
     // Reset préventif immédiat dès le début
     this.emergencyScrollReset();
@@ -77,58 +93,79 @@ export class VVPlaceApp {
       this.orientationManager = null;
     }
     
-    // 1. Initialise le scroll fluide (base pour tout le reste)
-    // Le scroll fluide est toujours initialisé car il ne dépend pas d'éléments spécifiques
+    // 1. Initialise le scroll fluide (version lite ou normale selon le mode)
     try {
-      logger.scroll(' Initialisation du SmoothScrollManager...');
-      this.smoothScrollManager = new SmoothScrollManager();
+      if (this.isMobileLite) {
+        logger.scroll(' Initialisation du SmoothScrollManagerLite...');
+        this.smoothScrollManager = new SmoothScrollManagerLite();
+      } else {
+        logger.scroll(' Initialisation du SmoothScrollManager...');
+        this.smoothScrollManager = new SmoothScrollManager();
+      }
       logger.success(' SmoothScrollManager initialisé avec succès');
     } catch (error) {
       logger.error(' Erreur lors de l\'initialisation du SmoothScrollManager:', error);
       this.smoothScrollManager = null;
     }
     
-    // 2. Initialise le gestionnaire de swipers (indépendant, peut être utilisé par d'autres gestionnaires)
-    try {
-      logger.debug(' Initialisation du SwiperManager...');
-      this.swiperManager = new SwiperManager();
-      this.swiperManager.init();
-      logger.success(' SwiperManager initialisé avec succès');
-    } catch (error) {
-      logger.error(' Erreur lors de l\'initialisation du SwiperManager:', error);
-      this.swiperManager = null;
+    // 2. Initialise le gestionnaire de swipers (seulement en mode desktop)
+    if (!this.isMobileLite) {
+      try {
+        logger.debug(' Initialisation du SwiperManager...');
+        this.swiperManager = new SwiperManager();
+        this.swiperManager.init();
+        logger.success(' SwiperManager initialisé avec succès');
+      } catch (error) {
+        logger.error(' Erreur lors de l\'initialisation du SwiperManager:', error);
+        this.swiperManager = null;
+      }
+    } else {
+      logger.debug(' SwiperManager ignoré en mode mobile lite');
     }
     
-    // 3 & 4. Init Slider + Loader uniquement quand la section devient visible
-    const sliderRoot = document.querySelector('.slider-panel_wrap') || document.querySelector('.slider-panel_list');
-    if (sliderRoot) {
-      const io = new IntersectionObserver(([e]) => {
-        if (!e.isIntersecting) return;
-        io.disconnect();
+    // 3 & 4. Init Slider + Loader (seulement en mode desktop)
+    if (!this.isMobileLite) {
+      const sliderRoot = document.querySelector('.slider-panel_wrap') || document.querySelector('.slider-panel_list');
+      if (sliderRoot) {
+        const io = new IntersectionObserver(([e]) => {
+          if (!e.isIntersecting) return;
+          io.disconnect();
 
-        try {
-          logger.slider(' Initialisation du SliderManager (on-demand)...');
-          this.sliderManager = new SliderManager();
-          this.sliderManager.init();
-          logger.success(' SliderManager initialisé (on-demand)');
-        } catch (error) {
-          logger.error(' Erreur SliderManager (on-demand):', error);
-          this.sliderManager = null;
-        }
+          try {
+            logger.slider(' Initialisation du SliderManager (on-demand)...');
+            this.sliderManager = new SliderManager();
+            this.sliderManager.init();
+            logger.success(' SliderManager initialisé (on-demand)');
+          } catch (error) {
+            logger.error(' Erreur SliderManager (on-demand):', error);
+            this.sliderManager = null;
+          }
 
-        try {
-          logger.loading('🎬 Initialisation du LoaderManager (après slider)...');
-          this.loaderManager = new LoaderManager(this.sliderManager, this.smoothScrollManager);
-          this.loaderManager.init();
-          logger.success('✅ LoaderManager initialisé (on-demand)');
-        } catch (error) {
-          logger.error('❌ Erreur LoaderManager (on-demand):', error);
-          this.loaderManager = null;
-        }
-      }, { rootMargin: '200px 0px' });
-      io.observe(sliderRoot);
+          try {
+            logger.loading('🎬 Initialisation du LoaderManager (après slider)...');
+            this.loaderManager = new LoaderManager(this.sliderManager, this.smoothScrollManager);
+            this.loaderManager.init();
+            logger.success('✅ LoaderManager initialisé (on-demand)');
+          } catch (error) {
+            logger.error('❌ Erreur LoaderManager (on-demand):', error);
+            this.loaderManager = null;
+          }
+        }, { rootMargin: '200px 0px' });
+        io.observe(sliderRoot);
+      } else {
+        logger.debug(' SliderManager/LoaderManager ignorés - éléments non trouvés');
+      }
     } else {
-      logger.debug(' SliderManager/LoaderManager ignorés - éléments non trouvés');
+      // Mode mobile lite : utiliser le loader simplifié
+      try {
+        logger.loading('🎬 Initialisation du LoaderManagerLite...');
+        this.loaderManager = new LoaderManagerLite();
+        this.loaderManager.init();
+        logger.success('✅ LoaderManagerLite initialisé');
+      } catch (error) {
+        logger.error('❌ Erreur LoaderManagerLite:', error);
+        this.loaderManager = null;
+      }
     }
 
     
@@ -183,6 +220,20 @@ export class VVPlaceApp {
       logger.warn(' Enhancement texte riche ignoré');
     }
 
+    // 8. Organisation des slides (même en mode mobile lite pour l'ordre correct)
+    try {
+      if (window.WindowUtils) {
+        const success = WindowUtils.setupSliderOrder();
+        if (success) {
+          logger.success(' Organisation des slides effectuée');
+        } else {
+          logger.debug(' Pas d\'éléments slider à organiser');
+        }
+      }
+    } catch(e) {
+      logger.warn(' Organisation des slides ignorée');
+    }
+
     // ↓↓↓ Gel des systèmes lourds pendant la rotation iOS
     let _rotateTimer;
     const _onRotateStart = () => {
@@ -201,6 +252,13 @@ export class VVPlaceApp {
     window.addEventListener('orientationchange', () => { _onRotateStart(); _onRotateEnd(); }, { passive:true });
     window.addEventListener('resize', () => { /* si resize en rafale pendant pivot */ _onRotateEnd(); }, { passive:true });
 
+    // Initialiser le gestionnaire de mode mobile lite
+    try {
+      this.mobileLiteManager = new MobileLiteManager(this);
+      logger.success(' MobileLiteManager initialisé');
+    } catch (error) {
+      logger.error(' Erreur lors de l\'initialisation du MobileLiteManager:', error);
+    }
     
     logger.success(' VVPlaceApp - Initialisation terminée');
   }
@@ -245,6 +303,11 @@ export class VVPlaceApp {
     if (this.orientationManager) {
       this.orientationManager.destroy();
       window.orientationManager = null;
+    }
+    
+    // Détruire le gestionnaire de mode mobile lite
+    if (this.mobileLiteManager) {
+      this.mobileLiteManager.destroy();
     }
     
     logger.success(' VVPlaceApp - Destruction terminée');
