@@ -13,6 +13,15 @@ import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
 import logger from './logger.js';
 
+
+// ↓↓↓ Ajout anti-flood de refresh sur resize (GSAP)
+if (window.ScrollTrigger && ScrollTrigger.config) {
+  ScrollTrigger.config({
+    autoRefreshEvents: "DOMContentLoaded,load,visibilitychange" // pas 'resize'
+  });
+}
+
+
 /**
  * Classe principale qui orchestre toute l'application VV Place
  * Initialise et coordonne tous les gestionnaires :
@@ -92,31 +101,38 @@ export class VVPlaceApp {
       this.swiperManager = null;
     }
     
-    // 3. Initialise le gestionnaire de slider si les éléments requis existent
-    if (this.checkSliderElements()) {
-      try {
-        logger.slider(' Initialisation du SliderManager...');
-        this.sliderManager = new SliderManager();
-        this.sliderManager.init();
-        logger.success(' SliderManager initialisé avec succès');
-      } catch (error) {
-        logger.error(' Erreur lors de l\'initialisation du SliderManager:', error);
-        this.sliderManager = null;
-      }
+    // 3 & 4. Init Slider + Loader uniquement quand la section devient visible
+    const sliderRoot = document.querySelector('.slider-panel_wrap') || document.querySelector('.slider-panel_list');
+    if (sliderRoot) {
+      const io = new IntersectionObserver(([e]) => {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+
+        try {
+          logger.slider(' Initialisation du SliderManager (on-demand)...');
+          this.sliderManager = new SliderManager();
+          this.sliderManager.init();
+          logger.success(' SliderManager initialisé (on-demand)');
+        } catch (error) {
+          logger.error(' Erreur SliderManager (on-demand):', error);
+          this.sliderManager = null;
+        }
+
+        try {
+          logger.loading('🎬 Initialisation du LoaderManager (après slider)...');
+          this.loaderManager = new LoaderManager(this.sliderManager, this.smoothScrollManager);
+          this.loaderManager.init();
+          logger.success('✅ LoaderManager initialisé (on-demand)');
+        } catch (error) {
+          logger.error('❌ Erreur LoaderManager (on-demand):', error);
+          this.loaderManager = null;
+        }
+      }, { rootMargin: '200px 0px' });
+      io.observe(sliderRoot);
     } else {
-      logger.debug(' SliderManager ignoré - éléments requis non trouvés');
+      logger.debug(' SliderManager/LoaderManager ignorés - éléments non trouvés');
     }
-    
-    // 4. Initialise le gestionnaire de loader (après le slider pour accéder à ses éléments)
-    try {
-      logger.loading('🎬 Initialisation du LoaderManager...');
-      this.loaderManager = new LoaderManager(this.sliderManager, this.smoothScrollManager);
-      this.loaderManager.init();
-      logger.success('✅ LoaderManager initialisé avec succès');
-    } catch (error) {
-      logger.error('❌ Erreur lors de l\'initialisation du LoaderManager:', error);
-      this.loaderManager = null;
-    }
+
     
     // 5. Initialise le gestionnaire de menu si les éléments requis existent
     if (this.checkMenuElements()) {
@@ -173,6 +189,25 @@ export class VVPlaceApp {
     } else {
       logger.debug(' RichTextManager ignoré - éléments requis non trouvés');
     }
+
+    // ↓↓↓ Gel des systèmes lourds pendant la rotation iOS
+    let _rotateTimer;
+    const _onRotateStart = () => {
+      try { window.lenis?.stop?.(); } catch {}
+      try { ScrollTrigger?.getAll().forEach(t => t.disable()); } catch {}
+      try { gsap.ticker?.lagSmoothing?.(false); } catch {}
+    };
+    const _onRotateEnd = () => {
+      clearTimeout(_rotateTimer);
+      _rotateTimer = setTimeout(() => {
+        try { ScrollTrigger?.refresh(true); ScrollTrigger?.getAll().forEach(t => t.enable()); } catch {}
+        try { window.lenis?.start?.(); } catch {}
+        try { gsap.ticker?.lagSmoothing?.(500, 33); } catch {}
+      }, 600); // laisse iOS finir sa transition
+    };
+    window.addEventListener('orientationchange', () => { _onRotateStart(); _onRotateEnd(); }, { passive:true });
+    window.addEventListener('resize', () => { /* si resize en rafale pendant pivot */ _onRotateEnd(); }, { passive:true });
+
     
     logger.success(' VVPlaceApp - Initialisation terminée');
   }

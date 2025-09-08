@@ -36,9 +36,17 @@ export class LoaderManager {
    */
   init() {
     logger.loading('🎬 LoaderManager - Initialisation...');
+
+	// Guard anti-double init
+	if (this.isInitialized) {
+		logger.debug(' LoaderManager déjà initialisé — skip');
+		return;
+	}
+	this.isInitialized = true;
+
     
     try {
-		this.isInitialized = true;
+		// this.isInitialized = true;
 		
 		// Force un reset robuste avant tout
 		this.forceCompleteReset();
@@ -162,29 +170,26 @@ export class LoaderManager {
 		// 	return;
 		// }
 
-		this.loaderElement.addEventListener('click', () => {
-			logger.debug('🔄 LoaderManager - Ajout de l\'évènement de chargement');
+		this._onLoaderClick = () => {
+			if (this.isLoading) return;
+			logger.debug('🔄 LoaderManager - déclenchement via click');
 			this.startLoading();
-		});
-
-		this.loaderElement.addEventListener('wheel', () => {
-			if (this.isLoading) {
-				logger.debug('🔄 LoaderManager - Chargement déjà en cours, ignore l\'évènement');
-				return;
-			}
-
-			logger.debug('🔄 LoaderManager - Ajout de l\'évènement de chargement');
+		};
+		this._onLoaderWheel = () => {
+			if (this.isLoading) return;
+			logger.debug('🔄 LoaderManager - déclenchement via wheel');
 			this.startLoading();
-		});
-		this.loaderElement.addEventListener('touch', () => {
-			if (this.isLoading) {
-				logger.debug('🔄 LoaderManager - Chargement déjà en cours, ignore l\'évènement');
-				return;
-			}
-
-			logger.debug('🔄 LoaderManager - Ajout de l\'évènement de chargement');
+		};
+		this._onLoaderTouchStart = () => {
+			if (this.isLoading) return;
+			logger.debug('🔄 LoaderManager - déclenchement via touchstart');
 			this.startLoading();
-		});
+		};
+
+		this.loaderElement.addEventListener('click', this._onLoaderClick, { passive: true });
+		this.loaderElement.addEventListener('wheel', this._onLoaderWheel, { passive: true });
+		this.loaderElement.addEventListener('touchstart', this._onLoaderTouchStart, { passive: true });
+
 	}
 
 	/**
@@ -997,6 +1002,12 @@ export class LoaderManager {
     
     // Ici vous pourrez ajouter le nettoyage des animations GSAP
     // et des event listeners si nécessaire
+
+	if (this.loaderElement) {
+		if (this._onLoaderClick)      this.loaderElement.removeEventListener('click', this._onLoaderClick);
+		if (this._onLoaderWheel)      this.loaderElement.removeEventListener('wheel', this._onLoaderWheel);
+		if (this._onLoaderTouchStart) this.loaderElement.removeEventListener('touchstart', this._onLoaderTouchStart);
+	}
     
     this.isInitialized = false;
     this.isLoading = false;

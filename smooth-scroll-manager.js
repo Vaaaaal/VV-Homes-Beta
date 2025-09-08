@@ -49,22 +49,40 @@ export class SmoothScrollManager {
   /**
    * Crée une nouvelle instance Lenis avec l'orientation appropriée
    */
-  createLenisInstance() {
-    // Détruit l'instance existante si elle existe
-    if (this.lenis) {
-      this.lenis.destroy();
+  createLenisInstance() {// Détruit l'instance existante si elle existe
+    if (this.lenis) { try { this.lenis.destroy(); } catch {} }
+
+    const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent);
+    const lowMem = (navigator.deviceMemory && navigator.deviceMemory <= 4) || false;
+    const orientation = (window.WindowUtils && window.WindowUtils.getOrientation()) || this.getCurrentOrientation();
+
+    if (isIOS && lowMem) {
+      logger.warn('iOS low-mem détecté : Lenis désactivé');
+      this.lenis = null;
+      return;
     }
 
-    const orientation = this.getCurrentOrientation();
-    
-    // Crée la nouvelle instance avec l'orientation appropriée
-    this.lenis = new Lenis({ 
-      orientation: orientation,
-      ...this.config.lenisOptions // Permet d'ajouter d'autres options Lenis
-    });
-    
-    // Reset agressif et persistant
-    this.forceScrollReset();
+    try {
+      this.lenis = new Lenis({
+        orientation,
+        ...this.config.lenisOptions
+      });
+
+      const _lenisRotatePause = () => { try { this.lenis?.stop?.(); } catch {} };
+      const _lenisRotateResume = () => { setTimeout(() => { try { this.lenis?.start?.(); } catch {} }, 600); };
+      window.addEventListener('orientationchange', _lenisRotatePause, { passive:true });
+      window.addEventListener('orientationchange', _lenisRotateResume, { passive:true });
+      // Sauvegarde pour cleanup:
+      this._removeRotateHooks = () => {
+        window.removeEventListener('orientationchange', _lenisRotatePause);
+        window.removeEventListener('orientationchange', _lenisRotateResume);
+      };
+
+    } catch (e) {
+      logger.error('Erreur Lenis, fallback natif:', e);
+      this.lenis = null;
+      return;
+    }
   }
 
   /**
@@ -288,6 +306,8 @@ export class SmoothScrollManager {
     
     // Nettoie toutes les instances de menu
     this.cleanupMenuScrolls();
+
+    if (this._removeRotateHooks) { this._removeRotateHooks(); }
   }
 
   /**
