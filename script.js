@@ -4,7 +4,7 @@
 import { VVPlaceApp } from './app.js';
 import './crash-detector.js';      // Détecteur de crash automatique
 import './emergency-mode.js';      // Mode d'urgence
-import './orientation-tester.js';  // Testeur d'orientation
+// import './orientation-tester.js';  // Testeur d'orientation
 import logger from './logger.js';
 
 /**
@@ -12,6 +12,36 @@ import logger from './logger.js';
  * Garantit que tous les éléments HTML sont disponibles avant l'initialisation
  */
 document.addEventListener("DOMContentLoaded", async () => {
+  // Réduction des logs verbeux en production + lazy-load des outils de debug
+  const isDebugMode = new URLSearchParams(location.search).get('debug') === '1';
+
+  // Rate-limit pour les méthodes de log très fréquentes
+  if (!isDebugMode && logger && typeof logger === 'object') {
+    const rateLimit = (fn, interval = 200) => {
+      let last = 0;
+      return (...args) => {
+        const now = Date.now();
+        if (now - last >= interval) {
+          last = now;
+          try { return fn.apply(logger, args); } catch (_) {}
+        }
+      };
+    };
+    if (typeof logger.debug === 'function') logger.debug = rateLimit(logger.debug, 400);
+    if (typeof logger.scroll === 'function') logger.scroll = rateLimit(logger.scroll, 400);
+    if (typeof logger.loading === 'function') logger.loading = rateLimit(logger.loading, 500);
+    if (typeof logger.menu === 'function') logger.menu = rateLimit(logger.menu, 300);
+    if (typeof logger.slider === 'function') logger.slider = rateLimit(logger.slider, 300);
+  }
+
+  // Lazy-load des utilitaires de debug uniquement en mode debug
+  if (isDebugMode) {
+    try {
+      const mod = await import('./debug-utils.js');
+      window.debugVV = mod.DebugUtils || mod.default || mod;
+    } catch (_) {}
+  }
+
   logger.log('📄 DOM chargé - Préparation de l\'application...');
   
   // Affichage des outils d'urgence disponibles

@@ -197,46 +197,44 @@ export class MenuManager {
    * Démarre la surveillance incrémentale des nouveaux éléments
    */
   startIncrementalWatcher() {
-    logger.log('👁️ Démarrage de la surveillance incrémentale...');
-    
+    logger.log('👁️ Démarrage de la surveillance incrémentale (scopée au menu)...');
+    const root = this.menu || document.querySelector('.menu_wrap') || document.body;
+
     const observer = new MutationObserver((mutations) => {
       let hasNewElements = false;
-      
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              // Vérifier si le nouveau nœud contient des boutons CMS
-              const newButtons = node.matches?.('.menu_panel_collection_item.is-btn') 
-                ? [node] 
-                : Array.from(node.querySelectorAll?.('.menu_panel_collection_item.is-btn') || []);
-              
-              if (newButtons.length > 0) {
-                hasNewElements = true;
-              }
-            }
-          });
+
+      for (const mutation of mutations) {
+        if (mutation.type !== 'childList' || mutation.addedNodes.length === 0) continue;
+
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          // Ignorer les ajouts hors du menu
+          if (root !== document.body && !node.closest?.('.menu_wrap')) continue;
+
+          if (node.matches?.('.menu_panel_collection_item.is-btn')) {
+            hasNewElements = true;
+            break;
+          }
+          const newButtons = node.querySelectorAll?.('.menu_panel_collection_item.is-btn');
+          if (newButtons && newButtons.length > 0) {
+            hasNewElements = true;
+            break;
+          }
         }
-      });
-      
+        if (hasNewElements) break;
+      }
+
       if (hasNewElements) {
-        // Debounce les mises à jour
         clearTimeout(this.updateTimeout);
         this.updateTimeout = setTimeout(() => {
-          this.handleNewCMSElements();
+          (window.requestIdleCallback || setTimeout)(() => this.handleNewCMSElements(), 0);
         }, 200);
       }
     });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    
-    // Stocker l'observer pour pouvoir l'arrêter plus tard
+
+    observer.observe(root, { childList: true, subtree: true });
     this.incrementalObserver = observer;
-    
-    logger.success(' Surveillance incrémentale active');
+    logger.success(' Surveillance incrémentale active (menu)');
   }
 
   /**

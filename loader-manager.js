@@ -90,29 +90,9 @@ export class LoaderManager {
 		document.body.style.overflow = 'hidden';
 		document.body.style.height = '100vh';
 		
-		// Récupération des premiers items du slider
-		this.sliderItems = this.getSliderItems(8);
 
-		// Copie des premiers items du slider dans loader_images et changement de nom de classe
-		this.sliderItems = this.sliderItems.map(item => {
-			const newItem = item.cloneNode(true);
-			newItem.classList.remove('slider-panel_item');
-			if(newItem.classList.contains('is-active-panel')) {
-				newItem.classList.remove('is-active-panel');
-			}
-			newItem.classList.add('slider_copy_item');
-			newItem.querySelector('.slider-panel_infos').remove();
-			newItem.querySelectorAll('.media_source').forEach(el => el.remove());
-			newItem.querySelectorAll('[data-menu-link]').forEach(el => el.removeAttribute('data-menu-link'));
-			const spacer = document.createElement('div');
-			spacer.classList.add('slider-panel_spacer');
-			newItem.querySelector('.slider-panel_inner').appendChild(spacer);
-			return newItem;
-		});
-
-		this.sliderItems.forEach(item => {
-			this.loaderContentThree.querySelector('.slider_copy').appendChild(item);
-		});
+		// Clone et injecte les items du slider dans le loader via un fragment (moins de reflows)
+		this._cloneInitialSliderItems();
 
 		logger.success('✅ LoaderManager initialisé avec succès');
 
@@ -125,6 +105,36 @@ export class LoaderManager {
       return false;
     }
   }
+
+	// Clone et prépare les items du slider pour le loader en une seule passe
+	_cloneInitialSliderItems() {
+		if (!this.loaderContentThree || !this.sliderManager) return;
+
+		const originals = this.getSliderItems(8);
+		const fragment = document.createDocumentFragment();
+		const clones = [];
+
+		originals.forEach(item => {
+			const newItem = item.cloneNode(true);
+			newItem.classList.remove('slider-panel_item', 'is-active-panel');
+			newItem.classList.add('slider_copy_item');
+			const info = newItem.querySelector('.slider-panel_infos'); if (info) info.remove();
+			newItem.querySelectorAll('.media_source').forEach(el => el.remove());
+			newItem.querySelectorAll('[data-menu-link]').forEach(el => el.removeAttribute('data-menu-link'));
+			const spacer = document.createElement('div'); spacer.classList.add('slider-panel_spacer');
+			const inner = newItem.querySelector('.slider-panel_inner'); if (inner) inner.appendChild(spacer);
+			clones.push(newItem);
+			fragment.appendChild(newItem);
+		});
+
+		const copyRoot = this.loaderContentThree.querySelector('.slider_copy');
+		if (copyRoot) {
+			// Nettoie puis append en une fois
+			copyRoot.innerHTML = '';
+			copyRoot.appendChild(fragment);
+		}
+		this.sliderItems = clones;
+	}
 
   /**
    * Ajoute l'évènement qui déclenche l'animation de chargement

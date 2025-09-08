@@ -710,31 +710,27 @@ export class SliderManager {
   handleDynamicTagInsertion() {
     // Récupère tous les éléments à insérer
     const itemsToInsert = document.querySelectorAll('[data-insert-to-item]');
-    
-    if (itemsToInsert.length === 0) {
-      return;
-    }
+    if (itemsToInsert.length === 0) return;
 
+    // Prépare une map id -> { listEl, fragment }
+    const listMap = new Map();
+    document.querySelectorAll('[data-insert-to-list]').forEach(listEl => {
+      const id = listEl.getAttribute('data-insert-to-list');
+      if (id) listMap.set(id, { listEl, fragment: document.createDocumentFragment() });
+    });
+
+    // Distribue les items vers leur fragment cible
     itemsToInsert.forEach(item => {
       const targetListId = item.getAttribute('data-insert-to-item');
-      
-      if (!targetListId) {
-        return;
-      }
+      if (!targetListId) return;
+      const entry = listMap.get(targetListId);
+      if (!entry) return;
+      try { entry.fragment.appendChild(item); } catch (_) {}
+    });
 
-      // Trouve la liste de destination correspondante
-      const targetList = document.querySelector(`[data-insert-to-list="${targetListId}"]`);
-      
-      if (!targetList) {
-        return;
-      }
-
-      try {
-        // Déplace l'élément vers la liste de destination
-        targetList.appendChild(item);
-      } catch (error) {
-        return;
-      }
+    // Commit en une seule passe par liste
+    listMap.forEach(({ listEl, fragment }) => {
+      if (fragment.childNodes.length > 0) listEl.appendChild(fragment);
     });
   }
 

@@ -88,6 +88,8 @@ export class CrashDetector {
    * Surveille les performances pendant les changements
    */
   setupPerformanceMonitoring() {
+  // Désactiver les hooks coûteux en production
+  if (logger?.isProduction) return;
     let refreshCount = 0;
     let refreshTimeout;
     
@@ -121,6 +123,8 @@ export class CrashDetector {
    * Surveille l'utilisation mémoire
    */
   setupMemoryMonitoring() {
+  // Désactiver la sonde mémoire en production
+  if (logger?.isProduction) return;
     if (!performance.memory) return;
     
     setInterval(() => {
@@ -141,6 +145,8 @@ export class CrashDetector {
    * Détecte les freezes de l'interface
    */
   setupFreezeDetection() {
+  // Désactiver la détection des freezes en production
+  if (logger?.isProduction) return;
     let lastBeat = Date.now();
     let missedBeats = 0;
     
