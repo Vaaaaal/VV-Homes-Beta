@@ -2,6 +2,7 @@
 // GESTIONNAIRE DU MENU DE NAVIGATION
 // ==========================================
 import { CONFIG } from './config.js';
+import { getSimplifiedConfig, isMobileLiteActive } from './mobile-lite-config.js';
 import logger from './logger.js';
 import { NavigationState } from './navigation-state.js';
 import { NavigationActiveState } from './navigation-active-state.js';

@@ -1,4 +1,5 @@
 // import Swiper from 'https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.mjs'
+import logger from './logger.js';
 
 // ==========================================
 // GESTIONNAIRE DES SWIPERS
@@ -20,6 +21,14 @@ export class SwiperManager {
    * Initialise le gestionnaire
    */
   init() {
+    // Vérifier si on est en mode mobile lite
+    const isMobileLite = window.WindowUtils ? window.WindowUtils.isMobileLite() : window.innerWidth < 768;
+    
+    if (isMobileLite) {
+      logger.debug && logger.debug(' SwiperManager désactivé en mode mobile lite (< 768px)');
+      return;
+    }
+    
     // Initialisations spécifiques si nécessaire
     this.createModalPreviewsSwiper();
   }

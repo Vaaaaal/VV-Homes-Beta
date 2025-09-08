@@ -43,11 +43,19 @@ export class SliderManager {
    * Initialise tous les composants du slider
    */
   init() {
-  this.immediateReset();            // Reset global centralisé
-  this.setupSliderOrder();          // Organise l'ordre des slides
-  this.resetSliderToStart();        // Positionne après ordre établi
-  this.handleDynamicTagInsertion(); // Gère insertion CMS
-  this.rebuildScrollSystem();       // Crée triggers + animations + indicateur
+    // Vérifier si on est en mode mobile lite
+    const isMobileLite = window.WindowUtils ? window.WindowUtils.isMobileLite() : window.innerWidth < 768;
+    
+    if (isMobileLite) {
+      logger.debug(' SliderManager désactivé en mode mobile lite (< 768px)');
+      return;
+    }
+    
+    this.immediateReset();            // Reset global centralisé
+    this.setupSliderOrder();          // Organise l'ordre des slides
+    this.resetSliderToStart();        // Positionne après ordre établi
+    this.handleDynamicTagInsertion(); // Gère insertion CMS
+    this.rebuildScrollSystem();       // Crée triggers + animations + indicateur
   }
 
   /**

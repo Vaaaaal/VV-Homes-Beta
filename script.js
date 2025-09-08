@@ -4,6 +4,7 @@
 import { VVPlaceApp } from './app.js';
 import './crash-detector.js';      // Détecteur de crash automatique
 import './emergency-mode.js';      // Mode d'urgence
+// import './orientation-tester.js';  // Testeur d'orientation
 import logger from './logger.js';
 
 /**
