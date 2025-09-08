@@ -43,7 +43,7 @@ VVPlaceApp (Contrôleur principal)
 ├── SwiperManager (Galeries d'images)
 ├── MenuManager (Navigation hiérarchique)
 ├── ModalManager (Fenêtres modales)
-└── RichTextManager (Contenu texte enrichi)
+└── Traitement texte riche inline (figcaption sources via WindowUtils)
 ```
 
 ## ✨ Fonctionnalités principales
@@ -142,8 +142,7 @@ VVPlaceApp (Contrôleur principal)
 │   ├── slider-manager.js       # Slider horizontal
 │   ├── menu-manager.js         # Navigation hiérarchique
 │   ├── modal-manager.js        # Système modal
-│   ├── swiper-manager.js       # Galeries d'images
-│   └── rich-text-manager.js    # Contenu enrichi
+│   └── swiper-manager.js       # Galeries d'images
 │
 └── Sécurité et debugging/
     ├── crash-detector.js       # Détection d'erreurs
@@ -164,7 +163,7 @@ VVPlaceApp (Contrôleur principal)
 6. LoaderManager (après slider)
 7. MenuManager (navigation)
 8. ModalManager (si éléments présents)
-9. RichTextManager (contenu)
+9. Traitement texte riche inline (figures)
 
 ### OrientationManager
 **Gestionnaire centralisé** évitant les conflits :
@@ -255,7 +254,6 @@ logger.emergency('🚨 Problème détecté')
 window.app                    // Instance principale
 window.debugVV.checkCriticalIssues()
 window.crashDetector.generateCrashReport()
-window.orientationTester.runStressTest()
 ```
 
 ## ⚡ Optimisations

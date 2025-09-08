@@ -18,7 +18,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   logger.log('🚨 Outils d\'urgence chargés:');
   logger.log('  - emergencyMode.activate() : Mode d\'urgence');
   logger.log('  - crashDetector.generateCrashReport() : Rapport de crash');
-  logger.log('  - orientationTester.runOrientationStressTest() : Test d\'orientation');
   logger.log('  - debugVV.checkCriticalIssues() : Diagnostic approfondi');
   
   // Délai réduit car l'approche incrémentale est plus robuste

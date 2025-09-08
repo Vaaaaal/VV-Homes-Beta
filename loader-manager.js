@@ -4,6 +4,28 @@
 import { CONFIG } from './config.js';
 import logger from './logger.js';
 
+// ==========================================
+// CONSTANTES INTERNES
+// ==========================================
+const SELECTORS = {
+  LOADER_WRAP: '.loader_wrap',
+  LOADER_ONE: '.loader_content_wrap .loader_one',
+  LOADER_IMAGES: '.loader_content_wrap .loader_images',
+  NAVBAR: '.nav_wrap',
+  MAIN_LIST: '.main-wrapper .slider-panel_wrap'
+};
+
+const DUR = {
+  H_MAINLIST: 2.125,
+  NAVBAR: 0.8,
+  INFO: 0.6,
+  FADE: 0.4,
+  V_FADE: 1
+};
+
+// Easing shortcuts
+const EASE = CONFIG.ANIMATION.EASE;
+
 /**
  * Gère l'animation du loader de page :
  * - Animations d'entrée et de sortie
@@ -18,16 +40,53 @@ export class LoaderManager {
     this.smoothScrollManager = smoothScrollManager;
     
     // Références aux éléments DOM du loader
-    this.loaderElement = document.querySelector('.loader_wrap');
-    this.loaderContentOne = this.loaderElement.querySelector('.loader_content_wrap .loader_one');
-    this.loaderContentThree = this.loaderElement.querySelector('.loader_content_wrap .loader_images');
+  this.loaderElement = document.querySelector(SELECTORS.LOADER_WRAP);
+  this.loaderContentOne = this.loaderElement?.querySelector(SELECTORS.LOADER_ONE);
+  this.loaderContentThree = this.loaderElement?.querySelector(SELECTORS.LOADER_IMAGES);
     this.sliderItems = [];
-    this.navbar = document.querySelector('.nav_wrap');
-    this.mainList = document.querySelector('.main-wrapper .slider-panel_wrap');
+  this.navbar = document.querySelector(SELECTORS.NAVBAR);
+  this.mainList = document.querySelector(SELECTORS.MAIN_LIST);
 
     // État du loader
     this.isLoading = false;
     this.isInitialized = false;
+	// Helpers liés aux callbacks pour éviter recréation
+	this._onMainListEntryComplete = this._onMainListEntryComplete.bind(this);
+  }
+
+  // ==========================================
+  // HELPERS D'INITIALISATION INTERNE
+  // ==========================================
+  _prepareInitialVisualState() {
+    if (this.navbar) gsap.set(this.navbar,{ opacity:0, y:-32 });
+  }
+  _prepareHorizontalEntry() {
+    if (this.mainList) gsap.set(this.mainList,{ xPercent:100 });
+  }
+  _preparePanelsInfos() {
+    if (!this.mainList) return;
+    const infos = this.mainList.querySelectorAll('.slider-panel_infos');
+    gsap.set(infos,{ opacity:0, y:-32 });
+  }
+  _lockLenis() {
+    const lenis = this.getLenis();
+    if (lenis) lenis.stop();
+  }
+  _cloneInitialSliderItems() {
+    if (!this.loaderContentThree || !this.sliderManager) return;
+    this.sliderItems = this.getSliderItems(8).map(item => {
+      const newItem = item.cloneNode(true);
+      newItem.classList.remove('slider-panel_item','is-active-panel');
+      newItem.classList.add('slider_copy_item');
+      const info = newItem.querySelector('.slider-panel_infos'); if (info) info.remove();
+      newItem.querySelectorAll('.media_source').forEach(el=>el.remove());
+      newItem.querySelectorAll('[data-menu-link]').forEach(el=>el.removeAttribute('data-menu-link'));
+      const spacer = document.createElement('div'); spacer.classList.add('slider-panel_spacer');
+      const inner = newItem.querySelector('.slider-panel_inner'); if (inner) inner.appendChild(spacer);
+      return newItem;
+    });
+    const copyRoot = this.loaderContentThree.querySelector('.slider_copy');
+    this.sliderItems.forEach(i => copyRoot && copyRoot.appendChild(i));
   }
 
   /**
@@ -37,12 +96,12 @@ export class LoaderManager {
   init() {
     logger.loading('🎬 LoaderManager - Initialisation...');
 
-	// Guard anti-double init
-	if (this.isInitialized) {
-		logger.debug(' LoaderManager déjà initialisé — skip');
-		return;
-	}
-	this.isInitialized = true;
+    // Guard anti-double init
+    if (this.isInitialized) {
+      logger.debug(' LoaderManager déjà initialisé — skip');
+      return;
+    }
+    this.isInitialized = true;
 
     
     try {
@@ -62,10 +121,7 @@ export class LoaderManager {
 			return;
 		}
 
-		gsap.set(this.navbar, {
-			opacity: 0,
-			y: -32,
-		});
+  this._prepareInitialVisualState();
 
 		// Détection de l'orientation pour adapter l'animation
 		const currentOrientation = this.getCurrentOrientation();
@@ -73,54 +129,19 @@ export class LoaderManager {
 		
 		logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
 
-		if (isHorizontal) {
-			gsap.set(this.mainList, {
-				xPercent: 100,
-				// position: 'relative', // Utilise relative au lieu d'absolute
-			});
-		}
+    if (isHorizontal) this._prepareHorizontalEntry();
 		
 		// Bloquer le scroll Lenis sur mainList dès l'initialisation
 		this.mainList.setAttribute('data-lenis-prevent', 'true');
 		
-		gsap.set(this.mainList.querySelectorAll('.slider-panel_infos'), {
-			opacity: 0,
-			y: -32,
-		});
+  this._preparePanelsInfos();
 
-		const lenis = this.getLenis();
-
-		if (lenis) {
-			// Bloquer le scroll
-			lenis.stop();
-		}
+  this._lockLenis();
 
 		document.body.style.overflow = 'hidden';
 		document.body.style.height = '100vh';
 		
-		// Récupération des premiers items du slider
-		this.sliderItems = this.getSliderItems(8);
-
-		// Copie des premiers items du slider dans loader_images et changement de nom de classe
-		this.sliderItems = this.sliderItems.map(item => {
-			const newItem = item.cloneNode(true);
-			newItem.classList.remove('slider-panel_item');
-			if(newItem.classList.contains('is-active-panel')) {
-				newItem.classList.remove('is-active-panel');
-			}
-			newItem.classList.add('slider_copy_item');
-			newItem.querySelector('.slider-panel_infos').remove();
-			newItem.querySelectorAll('.media_source').forEach(el => el.remove());
-			newItem.querySelectorAll('[data-menu-link]').forEach(el => el.removeAttribute('data-menu-link'));
-			const spacer = document.createElement('div');
-			spacer.classList.add('slider-panel_spacer');
-			newItem.querySelector('.slider-panel_inner').appendChild(spacer);
-			return newItem;
-		});
-
-		this.sliderItems.forEach(item => {
-			this.loaderContentThree.querySelector('.slider_copy').appendChild(item);
-		});
+  this._cloneInitialSliderItems();
 
 		logger.success('✅ LoaderManager initialisé avec succès');
 
@@ -135,9 +156,9 @@ export class LoaderManager {
   }
 
   /**
-   * Ajoute l'évènement qui déclenche l'animation de chargement
-   */
-  	addLoadEvent() {
+  * Ajoute l'évènement qui déclenche l'animation de chargement
+  */
+	addLoadEvent() {
 		if (!this.isInitialized) {
 			logger.error('❌ LoaderManager n\'est pas initialisé');
 			return;
@@ -173,6 +194,7 @@ export class LoaderManager {
 		this._onLoaderClick = () => {
 			if (this.isLoading) return;
 			logger.debug('🔄 LoaderManager - déclenchement via click');
+
 			this.startLoading();
 		};
 		this._onLoaderWheel = () => {
@@ -195,7 +217,7 @@ export class LoaderManager {
 	/**
 	 * Démarre l'animation de chargement
 	 */
-	startLoading() {
+  startLoading() {
 		logger.debug('🔄 LoaderManager - Démarrage de l\'animation de chargement');
 		this.isLoading = true;
 		
@@ -214,13 +236,11 @@ export class LoaderManager {
 		logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
 
 		if (isHorizontal) {
-			gsap.set(this.loaderElement, {
-				zIndex: -1, // Assure que le loader est au-dessous de tout
-			});
-			this.createHorizontalAnimation();
-		} else {
-			this.createVerticalAnimation();
-		}
+      gsap.set(this.loaderElement, { zIndex: -1 });
+      this._playHorizontal({ replay:false });
+    } else {
+      this._playVertical();
+    }
 	}
 	
 	/**
@@ -256,12 +276,8 @@ export class LoaderManager {
 	 * @returns {string} "horizontal" ou "vertical"
 	 */
 	getCurrentOrientation() {
-		// Utilise WindowUtils si disponible, sinon fallback sur window.innerWidth
-		const isDesktop = window.WindowUtils ? 
-		window.WindowUtils.isDesktop() : 
-		window.innerWidth >= 992; // 992px comme seuil pour desktop
-		
-		return isDesktop ? "horizontal" : "vertical";
+    if (window.WindowUtils && window.WindowUtils.getOrientation) return window.WindowUtils.getOrientation();
+    return window.innerWidth >= 992 ? 'horizontal' : 'vertical';
 	}
 
   /**
@@ -269,49 +285,14 @@ export class LoaderManager {
    * Combine les resets du SliderManager et SmoothScrollManager
    */
   forceCompleteReset() {
-    logger.debug('🔄 LoaderManager: Force reset complet...');
-    
-    // Reset via SliderManager
-    if (this.sliderManager && this.sliderManager.forceWindowScrollReset) {
-      this.sliderManager.forceWindowScrollReset();
-    }
-    
-    // Reset via SmoothScrollManager
-    if (this.smoothScrollManager) {
-      this.smoothScrollManager.resetToZero();
-    }
-    
-    // Reset supplémentaire direct
-    this.directScrollReset();
-    
-    logger.debug('✅ LoaderManager: Reset complet effectué');
-  }
-
-  /**
-   * Reset direct du scroll sans dépendances
-   */
-  directScrollReset() {
-    // Reset immédiat multiple
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.documentElement.scrollLeft = 0;
-    document.body.scrollTop = 0;
-    document.body.scrollLeft = 0;
-    
-    // Reset des containers potentiels
-    const containers = [
-      '.main-wrapper',
-      '.slider-panel_wrap',
-      '.slider-panel_list'
-    ];
-    
-    containers.forEach(selector => {
-      const container = document.querySelector(selector);
-      if (container) {
-        container.scrollLeft = 0;
-        container.scrollTop = 0;
-      }
-    });
+		logger.debug('🔄 LoaderManager: Reset complet (centralisé)');
+		if (window.WindowUtils) {
+			WindowUtils.resetScroll({ refreshScrollTrigger: false });
+			if (this.smoothScrollManager) WindowUtils.resetLenis(this.smoothScrollManager.lenis);
+		} else {
+			window.scrollTo(0,0);
+		}
+		logger.debug('✅ LoaderManager: Reset effectué');
   }
 
   /**
@@ -340,228 +321,98 @@ export class LoaderManager {
     
     logger.success('🔓 Scroll restauré avec succès');
   }	
+
+	// Callback commun post animation mainList
+	_onMainListEntryComplete() {
+		this.restoreScrollCapability();
+		this.resetLoaderImagePositions();
+	}
   
 	/**
 	 * Crée l'animation pour le mode horizontal (desktop)
 	 */
-	createHorizontalAnimation() {
-		const tl = gsap.timeline();
+  _playHorizontal({ replay }) {
+    if (!this.loaderContentThree || !this.mainList) return;
+    const items = this.loaderContentThree.querySelectorAll('.slider_copy_item');
+    const tl = gsap.timeline();
 
-		tl.set(this.loaderContentThree, {
-			opacity: 1,
+    if (!replay) {
+      tl.set(this.loaderContentThree, { opacity:1, onComplete:()=>this.loaderContentThree.classList.add('is-active') })
+        .set(items, { left:'100%' });
+    }
+
+    tl.to(items, {
+      left:0,
+      duration:(i,_,list)=> (i+1)/list.length + 1,
+      stagger:(i,_,list)=> ((i+1)/list.length) * 1 + 0.5,
+      ease:'power4.out'
+    })
+    .to(this.mainList, {
+      xPercent:0,
+      duration:DUR.H_MAINLIST,
+      ease:'power4.out',
+      onComplete:this._onMainListEntryComplete
+    }, '-=1.8')
+    .to(this.navbar, {
+      opacity:1, y:0, duration:DUR.NAVBAR, ease:EASE.POWER2.OUT,
       onComplete: () => {
+        logger.debug('✅ Animation de chargement navbar terminée');
+        gsap.set(this.mainList,{clearProps:'all'});
         this.loaderContentThree.classList.add('is-active');
-			}
-		}).set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-			left: '100%',
-		}).to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-			left: 0,
-			// delay: 1.5,
-			// duration: 1,
-			duration: function (index, target, list) {
-				console.log((index + 1) / list.length + 1);
-				return (index + 1) / list.length + 1; // Stagger basé sur l'index
-			},
-			// stagger: 0.2,
-			stagger: function (index, target, list) {
-				return ((index + 1) / list.length) * 1 + 0.5; // Stagger basé sur l'index
-			},
-			ease: "power4.out",
-		})
-		.to(this.mainList, {
-			xPercent: 0,
-			duration: 2.125,
-			ease: "power4.out",
-			onComplete: () => {
-				document.body.style.overflow = 'auto';
-				document.body.style.height = 'auto';
-				const lenis = this.getLenis();
-
-				if (lenis) {
-					// Débloquer le scroll
-					lenis.start();
-				}
-				
-				// Rafraîchit ScrollTrigger après les modifications de layout
-				if (window.ScrollTrigger) {
-					ScrollTrigger.refresh();
-					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
-				}
-
-        this.resetLoaderImagePositions();
-			}
-		}, "-=1.8")
-		.to(this.navbar, {
-			opacity: 1,
-			y: 0,
-			duration: 0.8,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 3 terminée');
-				gsap.set(this.mainList, { clearProps: "all" });
-				this.loaderContentThree.classList.add('is-active');
-				this.loaderElement.classList.remove('is-active');
-				this.isLoading = false;
-				// this.loaderElement.remove();
-			}
-		}, "-=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
-			opacity: 1,
-			y: 0,
-			duration: 0.6,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 4 terminée');
-				gsap.set(this.mainList, { clearProps: "all" });
-				
-				// Débloquer le scroll Lenis sur mainList
-				this.unlockMainListScroll();
-				
-				logger.success('✅ Chargement terminé');
-			}
-		}, "<=0.2);");;
-	}
+        if (!replay) this.loaderElement.classList.remove('is-active');
+        this.isLoading = false;
+      }
+    }, '-=0.3')
+    .to(this.mainList.querySelectorAll('.slider-panel_infos'), {
+      opacity:1, y:0, duration:DUR.INFO, ease:EASE.POWER2.OUT,
+      onComplete: () => {
+        gsap.set(this.mainList,{clearProps:'all'});
+        this.unlockMainListScroll();
+        if (replay) {
+          // Fade out loader overlay after replay
+          gsap.to(this.loaderElement,{ opacity:0, duration:0.3, delay:0.2, ease:'power2.out', onComplete:()=>{
+            gsap.set(this.loaderElement,{ zIndex:-1 });
+            this.resetLoaderImagePositions();
+            this.showMenuVisually();
+          }});
+        }
+        logger.success(replay ? '✅ Replay horizontal terminé' : '✅ Chargement terminé');
+      }
+    }, '<=0.2');
+  }
 
 	/**
 	 * Crée l'animation pour le mode vertical (mobile)
 	 */
-	createVerticalAnimation() {
-		const tl = gsap.timeline();
-
-		tl.to(this.loaderContentOne, {
-			opacity: 0,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 1 terminée');
-				this.loaderContentOne.classList.remove('is-active');
-				this.loaderContentThree.classList.add('is-active');
-			}
-		})
-		.to(this.loaderElement, {
-			opacity: 0,
-			duration: 1,
-			onComplete: () => {
-				logger.debug('✅ Animation de chargement 3 terminée');
-				
-				// Restaure le scroll de façon centralisée
-				this.restoreScrollCapability();
-
-				this.loaderContentThree.classList.add('is-active');
-				this.loaderElement.classList.remove('is-active');
-				this.isLoading = false;
-				this.loaderElement.remove();
-				
-				// Rafraîchit ScrollTrigger après les modifications de layout
-				if (window.ScrollTrigger) {
-					ScrollTrigger.refresh();
-
-					// Désactive le watchdog maintenant que l'animation est terminée
-					if (this.smoothScrollManager) {
-						this.smoothScrollManager.disableResetWatchdog();
-					}
-					
-					// Reset final pour être certain
-					this.forceCompleteReset();
-					
-					// Restaure le scroll de façon centralisée
-					this.restoreScrollCapability();
-					
-					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
-
-          this.resetLoaderImagePositions();
-				}
-			}
-		}, "<=0.5")
-		.to(this.navbar, {
-			opacity: 1,
-			y: 0,
-			duration: 0.8,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-		}, "+=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
-			opacity: 1,
-			y: 0,
-			duration: 0.6,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-			onComplete: () => {
-				// Débloquer le scroll Lenis sur mainList
-				this.unlockMainListScroll();
-				
-				logger.success('✅ Chargement terminé');
-			}
-		}, "<=0.2);");
-	}
-	
-	/**
-	 * Lance l'animation de chargement avec stacking des images
-	 * Utilise GSAP pour animer les images du loader
-	 */
-	// animateLoaderImages() {
-	// 	if (!this.isInitialized || !this.isLoading) {
-	// 		logger.warn('⚠️ LoaderManager non initialisé ou pas en cours de chargement');
-	// 		return;
-	// 	}
-
-	// 	logger.debug('🔄 Animation des images du loader en cours...');
-		
-	// 	this.loaderContentThree.classList.add('is-active');
-		
-	// 	const tl = gsap.timeline();
-	// 	tl.set(this.loaderContentThree, {
-	// 		opacity: 1,
-	// 	}).set(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-	// 		left: '100%',
-	// 	}).to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-	// 		left: 0,
-	// 		duration: 1,
-	// 		stagger: 0.2,
-	// 		ease: "power4.out",
-	// 	})
-	// 	.to(this.mainList, {
-	// 		xPercent: 0,
-	// 		duration: 1,
-	// 		ease: "power2.out",
-	// 		onComplete: () => {
-	// 			document.body.style.overflow = 'auto';
-	// 			document.body.style.height = 'auto';
-	// 			const lenis = this.getLenis();
-
-	// 			if (lenis) {
-	// 				// Débloquer le scroll
-	// 				lenis.start();
-	// 			}
-				
-	// 			// Rafraîchit ScrollTrigger après les modifications de layout
-	// 			if (window.ScrollTrigger) {
-	// 				ScrollTrigger.refresh();
-	// 				logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
-	// 			}
-	// 		}
-	// 	}, "-=0.8")
-	// 	.to(this.navbar, {
-	// 		opacity: 1,
-	// 		y: 0,
-	// 		duration: 0.8,
-	// 		ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-	// 		onComplete: () => {
-	// 			logger.debug('✅ Animation de chargement 3 terminée');
-	// 			gsap.set(this.mainList, { clearProps: "all" });
-	// 			this.loaderContentThree.classList.add('is-active');
-	// 			this.loaderElement.classList.remove('is-active');
-	// 			this.isLoading = false;
-	// 			this.loaderElement.remove();
-	// 		}
-	// 	}, "+=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
-	// 		opacity: 1,
-	// 		y: 0,
-	// 		duration: 0.6,
-	// 		stagger: 0.15,
-	// 		ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-	// 		onComplete: () => {
-	// 			logger.debug('✅ Animation de chargement 4 terminée');
-	// 			gsap.set(this.mainList, { clearProps: "all" });
-	// 			logger.success('✅ Chargement terminé');
-	// 		}
-	// 	}, "<=0.2);");
-	// }
+  _playVertical() {
+    const tl = gsap.timeline();
+    tl.to(this.loaderContentOne, { opacity:0, duration:DUR.V_FADE, onComplete:()=>{
+      logger.debug('✅ Animation loader phase 1');
+      this.loaderContentOne?.classList.remove('is-active');
+      this.loaderContentThree?.classList.add('is-active');
+    }})
+    .to(this.loaderElement, { opacity:0, duration:DUR.V_FADE, onComplete:()=>{
+      logger.debug('✅ Animation loader phase 2');
+      this.loaderContentThree?.classList.add('is-active');
+      this.loaderElement.classList.remove('is-active');
+      this.isLoading = false;
+      this.loaderElement.remove();
+      this.restoreScrollCapability();
+      if (window.ScrollTrigger) {
+        ScrollTrigger.refresh();
+        if (this.smoothScrollManager) this.smoothScrollManager.disableResetWatchdog();
+        this.forceCompleteReset();
+        this.restoreScrollCapability();
+        logger.debug('🔄 Refresh ScrollTrigger post vertical loader');
+      }
+      this.resetLoaderImagePositions();
+    }}, '<=0.5')
+    .to(this.navbar, { opacity:1, y:0, duration:DUR.NAVBAR, ease:EASE.POWER2.OUT }, '+=0.3')
+    .to(this.mainList.querySelectorAll('.slider-panel_infos'), { opacity:1, y:0, duration:DUR.INFO, ease:EASE.POWER2.OUT, onComplete:()=>{
+      this.unlockMainListScroll();
+      logger.success('✅ Chargement terminé');
+    }}, '<=0.2');
+  }
 
   /**
    * Relance l'animation du loaderContentThree (stacking des images)
@@ -874,103 +725,12 @@ export class LoaderManager {
    * Version simplifiée pour le replay depuis le menu (mode horizontal uniquement)
    */
   animateLoaderImagesOnly() {
-    if (!this.loaderContentThree) {
-      logger.error('❌ loaderContentThree non trouvé');
-      this.isLoading = false;
-      return;
-    }
-
+    if (!this.loaderContentThree) { logger.error('❌ loaderContentThree non trouvé'); this.isLoading=false; return; }
     logger.debug('🎬 Animation isolée du stacking d\'images (mode horizontal)...');
-    
-    // Remettre le z-index du loader à -1 pour l'horizontal
-    gsap.set(this.loaderElement, {
-      zIndex: -1,
-    });
-    
-    // Lancer directement l'animation horizontale
-    this.createHorizontalReplayAnimation();
+    gsap.set(this.loaderElement,{ zIndex:-1 });
+    this._playHorizontal({ replay:true });
   }
-  
-  /**
-   * Crée l'animation de replay pour le mode horizontal
-   */
-  createHorizontalReplayAnimation() {
-    const tl = gsap.timeline();
-    
-    tl.to(this.loaderContentThree.querySelectorAll('.slider_copy_item'), {
-      left: 0,
-      duration: function (index, target, list) {
-        return (index + 1) / list.length + 1; // Durée dynamique basée sur l'index
-      },
-      stagger: function (index, target, list) {
-        return ((index + 1) / list.length) * 1 + 0.5; // Stagger basé sur l'index
-      },
-      ease: "power4.out",
-    }).to(this.mainList, {
-			xPercent: 0,
-			duration: 2.125,
-			ease: "power4.out",
-			onComplete: () => {
-				document.body.style.overflow = 'auto';
-				document.body.style.height = 'auto';
-				const lenis = this.getLenis();
 
-				if (lenis) {
-					// Débloquer le scroll
-					lenis.start();
-				}
-				
-				// Rafraîchit ScrollTrigger après les modifications de layout
-				if (window.ScrollTrigger) {
-					ScrollTrigger.refresh();
-					logger.debug('🔄 ScrollTrigger rafraîchi après le loader');
-				}
-
-        // Ne pas réafficher le menu ici - attendre la fin de l'animation
-			}
-		}, "-=1.8")
-		.to(this.navbar, {
-			opacity: 1,
-			y: 0,
-			duration: 0.8,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-		}, "-=0.3").to(this.mainList.querySelectorAll('.slider-panel_infos'), {
-			opacity: 1,
-			y: 0,
-			duration: 0.6,
-			ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-			onComplete: () => {
-				logger.debug('✅ Animation des infos panels terminée (horizontal replay)');
-				gsap.set(this.mainList, { clearProps: "all" });
-				
-				// Réafficher le menu visuellement maintenant que l'animation est presque terminée
-				this.showMenuVisually();
-				
-				// Ajouter un délai puis fade out fluide
-				gsap.to(this.loaderElement, {
-					opacity: 0,
-					duration: 0.3,
-					delay: 0.2, // Petit délai pour apprécier l'animation
-					ease: "power2.out",
-					onComplete: () => {
-						// Remettre le z-index à -1 pour que le loader passe derrière
-						gsap.set(this.loaderElement, {
-							zIndex: -1,
-						});
-
-						this.resetLoaderImagePositions();
-						
-						// Débloquer le scroll Lenis sur mainList
-						this.unlockMainListScroll();
-						
-						logger.success('✅ Animation de replay horizontale terminée avec fade out');
-						this.isLoading = false;
-					}
-				});
-			}
-		}, "<=0.2");
-  }
-  
   /**
    * Initialise l'écouteur d'événement pour le logo du menu
    * À appeler après l'initialisation du MenuManager
