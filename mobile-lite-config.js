@@ -14,6 +14,7 @@ export const MOBILE_LITE_CONFIG = {
   DISABLED_FEATURES: {
     SLIDER_MANAGER: true,           // Slider horizontal complexe
     SWIPER_MANAGER: true,          // Swipers dans les modales
+    MODAL_MANAGER: true,           // Modales avec swipers
     COMPLEX_LOADER: true,          // Animations loader complexes
     LENIS_SMOOTH_SCROLL: true,     // Scroll fluide Lenis
     SCROLL_TRIGGER_HEAVY: true,    // ScrollTrigger complexe

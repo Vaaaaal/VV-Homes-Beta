@@ -42,24 +42,16 @@ export class LoaderManagerLite {
 
       logger.success('✅ LoaderManagerLite initialisé avec succès');
 
-      // Ajout de l'évènement de chargement
-      this.addLoadEvent();
+      // Configurer l'écoute du touch/clic sur le loader
+      this.initLoaderTouchListener();
+      
+      // Ne pas configurer l'écoute du logo en mode mobile lite
+      // Le logo doit garder son comportement normal (fermer le menu)
       
       return true;
     } catch (error) {
       logger.error('❌ Erreur lors de l\'initialisation du LoaderManagerLite:', error);
       return false;
-    }
-  }
-
-  /**
-   * Ajoute l'évènement de chargement
-   */
-  addLoadEvent() {
-    if (document.readyState === 'complete') {
-      this.startLoader();
-    } else {
-      window.addEventListener('load', () => this.startLoader());
     }
   }
 
@@ -114,24 +106,80 @@ export class LoaderManagerLite {
   }
 
   /**
-   * Méthode pour relancer l'animation (compatibilité avec LoaderManager)
+   * Configure l'écoute du touch/clic sur le loader fullscreen
+   */
+  initLoaderTouchListener() {
+    if (!this.loaderElement) {
+      logger.debug(' Loader element non trouvé pour l\'écoute du touch');
+      return;
+    }
+
+    const handleLoaderTouch = (e) => {
+      e.preventDefault();
+      logger.info(' Touch/clic sur loader détecté - lancement du fade out');
+      this.startLoader();
+      
+      // Retirer l'écouteur après le premier touch pour éviter les doubles déclenchements
+      this.removeLoaderTouchListener();
+    };
+
+    // Écouter à la fois touch et click pour compatibilité
+    this.loaderElement.addEventListener('touchstart', handleLoaderTouch, { passive: false });
+    this.loaderElement.addEventListener('click', handleLoaderTouch);
+    
+    // Style pour indiquer que c'est interactif
+    this.loaderElement.style.cursor = 'pointer';
+    
+    // Sauvegarder pour pouvoir nettoyer
+    this.removeLoaderTouchListener = () => {
+      this.loaderElement.removeEventListener('touchstart', handleLoaderTouch);
+      this.loaderElement.removeEventListener('click', handleLoaderTouch);
+      this.loaderElement.style.cursor = '';
+    };
+    
+    logger.debug(' Écoute du touch/clic sur loader configurée');
+  }
+
+  /**
+   * Méthode de compatibilité pour le MenuManager
+   * En mode mobile lite, configure le logo pour fermer le menu
    */
   initLogoClickListener() {
-    const logo = document.querySelector('.nav_logo_link');
-    if (!logo) return;
-
-    logo.addEventListener('click', (e) => {
-      if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-        e.preventDefault();
-        this.startLoader();
+    logger.debug(' initLogoClickListener appelé en mode mobile lite - configuration fermeture menu');
+    
+    // Chercher le logo dans le menu avec le sélecteur fourni
+    const logoElement = document.querySelector('.menu_panel_item_top-link');
+    
+    if (!logoElement) {
+      logger.warn('⚠️ Logo du menu (.menu_panel_item_top-link) non trouvé');
+      return;
+    }
+    
+    // Ajouter l'écouteur d'événement pour fermer le menu
+    logoElement.addEventListener('click', (e) => {
+      e.preventDefault(); // Empêcher le comportement par défaut
+      logger.debug('🖱️ Clic sur le logo détecté en mode mobile lite - fermeture du menu');
+      
+      // Accéder au MenuManager via l'app globale pour fermer le menu
+      if (window.app && window.app.menuManager) {
+        window.app.menuManager.closeMenu(true);
+      } else {
+        logger.warn('MenuManager non accessible pour fermer le menu');
       }
     });
+    
+    logger.success('✅ Écouteur d\'événement du logo initialisé (fermeture menu)');
   }
 
   /**
    * Détruit le gestionnaire
    */
   destroy() {
+    // Nettoyer les écouteurs d'événements
+    if (this.removeLoaderTouchListener) {
+      this.removeLoaderTouchListener();
+    }
+    
     if (this.loaderElement) {
       this.loaderElement.style.display = '';
       this.loaderElement.style.opacity = '';

@@ -196,7 +196,8 @@ export class VVPlaceApp {
     }
     
     // 6. Initialise le gestionnaire de modales si les éléments requis existent
-    if (this.checkModalElements()) {
+    // En mode mobile lite, on désactive les modales (pas de swipers)
+    if (!this.isMobileLite && this.checkModalElements()) {
       try {
         logger.modal(' Initialisation du ModalManager...');
         this.modalManager = new ModalManager(this.swiperManager);
@@ -207,7 +208,11 @@ export class VVPlaceApp {
         this.modalManager = null;
       }
     } else {
-      logger.debug(' ModalManager ignoré - éléments requis non trouvés');
+      if (this.isMobileLite) {
+        logger.debug(' ModalManager ignoré en mode mobile lite');
+      } else {
+        logger.debug(' ModalManager ignoré - éléments requis non trouvés');
+      }
     }
     
     // 7. Traitement léger du texte riche (inline utilitaire)
@@ -232,6 +237,16 @@ export class VVPlaceApp {
       }
     } catch(e) {
       logger.warn(' Organisation des slides ignorée');
+    }
+
+    // 9. Désactiver les déclencheurs de modales en mode mobile lite
+    if (this.isMobileLite) {
+      try {
+        this.disableModalTriggers();
+        logger.debug(' Déclencheurs de modales désactivés en mode mobile lite');
+      } catch(e) {
+        logger.warn(' Impossible de désactiver les déclencheurs de modales');
+      }
     }
 
     // ↓↓↓ Gel des systèmes lourds pendant la rotation iOS
@@ -404,5 +419,28 @@ export class VVPlaceApp {
       window.scrollTo(0,0);
     }
     logger.debug('🚨 Reset d\'urgence terminé');
+  }
+
+  /**
+   * Désactive les déclencheurs de modales en mode mobile lite
+   */
+  disableModalTriggers() {
+    const modalTriggers = document.querySelectorAll('[data-modal-trigger]');
+    
+    modalTriggers.forEach(trigger => {
+      // Sauvegarder l'événement original si pas déjà fait
+      if (!trigger.dataset.originalClick) {
+        trigger.dataset.originalClick = 'saved';
+        
+        // Remplacer par un handler qui ne fait rien
+        trigger.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          logger.debug(' Clic sur déclencheur modal ignoré en mode mobile lite');
+        }, { capture: true });
+      }
+    });
+    
+    return modalTriggers.length;
   }
 }
