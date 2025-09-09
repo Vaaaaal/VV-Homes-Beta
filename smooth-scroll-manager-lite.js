@@ -151,13 +151,8 @@ export class SmoothScrollManagerLite {
    * Désactive le scroll (pour compatibilité avec MenuManager)
    */
   disableScroll() {
-    // Sauvegarder la position actuelle
-    this.savedScrollPosition = this.getScrollY();
-    
     // Bloquer le scroll avec CSS
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${this.savedScrollPosition}px`;
     document.body.style.width = '100%';
     
     logger.debug(' SmoothScrollManagerLite: Scroll désactivé');
@@ -172,12 +167,6 @@ export class SmoothScrollManagerLite {
     document.body.style.position = '';
     document.body.style.top = '';
     document.body.style.width = '';
-    
-    // Restaurer la position de scroll
-    if (typeof this.savedScrollPosition === 'number') {
-      window.scrollTo(0, this.savedScrollPosition);
-      this.savedScrollPosition = null;
-    }
     
     logger.debug(' SmoothScrollManagerLite: Scroll réactivé');
   }
