@@ -200,26 +200,6 @@ export class LoaderManagerLite {
         window.app.menuManager.closeMenu(true);
       } else {
         logger.warn('MenuManager non accessible pour fermer le menu');
-    logger.debug(' initLogoClickListener appelé en mode mobile lite - configuration fermeture menu');
-    
-    // Chercher le logo dans le menu avec le sélecteur fourni
-    const logoElement = document.querySelector('.menu_panel_item_top-link');
-    
-    if (!logoElement) {
-      logger.warn('⚠️ Logo du menu (.menu_panel_item_top-link) non trouvé');
-      return;
-    }
-    
-    // Ajouter l'écouteur d'événement pour fermer le menu
-    logoElement.addEventListener('click', (e) => {
-      e.preventDefault(); // Empêcher le comportement par défaut
-      logger.debug('🖱️ Clic sur le logo détecté en mode mobile lite - fermeture du menu');
-      
-      // Accéder au MenuManager via l'app globale pour fermer le menu
-      if (window.app && window.app.menuManager) {
-        window.app.menuManager.closeMenu(true);
-      } else {
-        logger.warn('MenuManager non accessible pour fermer le menu');
       }
     });
     
