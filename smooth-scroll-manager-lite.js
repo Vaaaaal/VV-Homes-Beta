@@ -151,22 +151,44 @@ export class SmoothScrollManagerLite {
    * Désactive le scroll (pour compatibilité avec MenuManager)
    */
   disableScroll() {
+    // Sauvegarder la position actuelle
+    this.savedScrollPosition = this.getScrollY();
+    
+    // Bloquer le scroll avec CSS
     document.body.style.overflow = 'hidden';
-    logger.debug(' SmoothScrollManagerLite: scroll désactivé');
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${this.savedScrollPosition}px`;
+    document.body.style.width = '100%';
+    
+    logger.debug(' SmoothScrollManagerLite: Scroll désactivé');
   }
 
   /**
    * Réactive le scroll (pour compatibilité avec MenuManager)
    */
   enableScroll() {
+    // Restaurer les styles
     document.body.style.overflow = '';
-    logger.debug(' SmoothScrollManagerLite: scroll réactivé');
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.width = '';
+    
+    // Restaurer la position de scroll
+    if (typeof this.savedScrollPosition === 'number') {
+      window.scrollTo(0, this.savedScrollPosition);
+      this.savedScrollPosition = null;
+    }
+    
+    logger.debug(' SmoothScrollManagerLite: Scroll réactivé');
   }
 
   /**
    * Détruit le gestionnaire
    */
   destroy() {
+    // Réactiver le scroll si il était désactivé
+    this.enableScroll();
+    
     // Nettoyer les écouteurs
     this.scrollListeners.forEach(callback => {
       window.removeEventListener('scroll', callback);

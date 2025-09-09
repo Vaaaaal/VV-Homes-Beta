@@ -164,10 +164,26 @@ export class MenuManager {
     // Traitement texte riche léger (utilitaire central)
     try {
       if (window.WindowUtils) {
+        logger.debug(' MenuManager: Début du traitement richtext...');
         const c = WindowUtils.enhanceRichTextFigures();
-        if (c) logger.success(` Rich text enrichi (${c})`);
+        if (c > 0) {
+          logger.success(` MenuManager: Rich text enrichi (${c} figures traitées)`);
+        } else {
+          logger.debug(' MenuManager: Aucune figure richtext trouvée à traiter');
+          
+          // Réessayer après un court délai au cas où le contenu se charge de manière asynchrone
+          setTimeout(() => {
+            logger.debug(' MenuManager: Nouveau tentative de traitement richtext...');
+            const c2 = WindowUtils.enhanceRichTextFigures();
+            if (c2 > 0) {
+              logger.success(` MenuManager: Rich text enrichi en différé (${c2} figures traitées)`);
+            }
+          }, 500);
+        }
       }
-    } catch(_) {}
+    } catch(e) {
+      logger.warn(' MenuManager: Erreur lors du traitement richtext:', e);
+    }
     
     logger.success(' Menu initialisé avec les éléments actuels');
   }

@@ -13,6 +13,7 @@ import { ModalManager } from './modal-manager.js';
 import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
 import { MobileLiteManager } from './mobile-lite-manager.js';
+import './utils.js'; // Import des WindowUtils
 import logger from './logger.js';
 
 
@@ -237,6 +238,20 @@ export class VVPlaceApp {
       }
     } catch(e) {
       logger.warn(' Organisation des slides ignorée');
+    }
+
+    // 8b. Insertion dynamique des tags CMS (même en mode mobile lite)
+    try {
+      if (window.WindowUtils) {
+        const inserted = WindowUtils.handleDynamicTagInsertion();
+        if (inserted > 0) {
+          logger.success(` Insertion dynamique: ${inserted} tag(s) inséré(s)`);
+        } else {
+          logger.debug(' Pas d\'éléments à insérer dynamiquement');
+        }
+      }
+    } catch(e) {
+      logger.warn(' Insertion dynamique des tags ignorée');
     }
 
     // 9. Désactiver les déclencheurs de modales en mode mobile lite

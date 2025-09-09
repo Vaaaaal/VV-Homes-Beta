@@ -257,31 +257,101 @@ WindowUtils.resetLenis = function resetLenis(lenisInstance) {
 // Traitement léger du texte riche (ex-RichTextManager)
 WindowUtils.enhanceRichTextFigures = function enhanceRichTextFigures() {
     const richTexts = document.querySelectorAll('.text-rich-text');
-    if (!richTexts.length) return 0;
+    if (!richTexts.length) {
+        console.debug('enhanceRichTextFigures: Aucun .text-rich-text trouvé');
+        return 0;
+    }
+    
+    console.debug(`enhanceRichTextFigures: ${richTexts.length} conteneur(s) .text-rich-text trouvé(s)`);
     let processed = 0;
-    richTexts.forEach(container => {
+    
+    richTexts.forEach((container, containerIndex) => {
         const figures = container.querySelectorAll('figure');
-        figures.forEach(fig => {
+        console.debug(`enhanceRichTextFigures: Conteneur ${containerIndex + 1} - ${figures.length} figure(s) trouvée(s)`);
+        
+        figures.forEach((fig, figIndex) => {
             const caption = fig.querySelector('figcaption');
-            if (!caption) return;
-            if (!caption.textContent.includes('///')) return;
+            if (!caption) {
+                console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Pas de figcaption`);
+                return;
+            }
+            
+            if (!caption.textContent.includes('///')) {
+                console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Pas de '///' dans: "${caption.textContent}"`);
+                return;
+            }
+            
             const parts = caption.textContent.split('///');
             const source = parts[0].trim();
             const description = (parts[1] || '').trim();
-            if (!source) return;
+            
+            if (!source) {
+                console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Source vide`);
+                return;
+            }
+            
             const firstDiv = fig.querySelector('div');
-            if (!firstDiv) return;
+            if (!firstDiv) {
+                console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Pas de div`);
+                return;
+            }
+            
             // Éviter double insertion
-            if (firstDiv.querySelector('.media_source')) return;
+            if (firstDiv.querySelector('.media_source')) {
+                console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Déjà traité`);
+                return;
+            }
+            
             const span = document.createElement('span');
             span.className = 'media_source';
             span.textContent = source;
             caption.textContent = description;
             firstDiv.appendChild(span);
             processed++;
+            
+            console.debug(`enhanceRichTextFigures: Figure ${figIndex + 1} - Traité avec succès (source: "${source}")`);
         });
     });
+    
+    console.debug(`enhanceRichTextFigures: ${processed} figure(s) traitée(s) au total`);
     return processed;
+};
+
+// Helper pour l'insertion dynamique des tags CMS (utilisable même sans SliderManager)
+WindowUtils.handleDynamicTagInsertion = function handleDynamicTagInsertion() {
+    // Récupère tous les éléments à insérer
+    const itemsToInsert = document.querySelectorAll('[data-insert-to-item]');
+    
+    if (itemsToInsert.length === 0) {
+        return 0;
+    }
+
+    let inserted = 0;
+    itemsToInsert.forEach(item => {
+        const targetListId = item.getAttribute('data-insert-to-item');
+        
+        if (!targetListId) {
+            return;
+        }
+
+        // Trouve la liste de destination correspondante
+        const targetList = document.querySelector(`[data-insert-to-list="${targetListId}"]`);
+        
+        if (!targetList) {
+            return;
+        }
+
+        try {
+            // Déplace l'élément vers la liste de destination
+            targetList.appendChild(item);
+            inserted++;
+        } catch (error) {
+            // Ignore silencieusement les erreurs
+            return;
+        }
+    });
+    
+    return inserted;
 };
 
 // Helper pour organiser les slides (utilisable même sans SliderManager)
