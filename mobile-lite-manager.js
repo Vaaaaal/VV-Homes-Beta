@@ -40,11 +40,21 @@ export class MobileLiteManager {
 
   /**
    * Configure l'écoute des changements de taille
+   * OPTIMISÉ: Utilise throttling pour limiter la fréquence des vérifications
    */
   setupResizeListener() {
+    // Throttle les resize events pour éviter la surcharge
+    const throttledResize = this.throttle(() => {
+      this.checkModeChange();
+    }, 100); // Max 10 vérifications par seconde
+
     const handleResize = () => {
       clearTimeout(this.debounceTimer);
       
+      // Vérification immédiate throttlée
+      throttledResize();
+      
+      // Vérification différée pour confirmer
       this.debounceTimer = setTimeout(() => {
         this.checkModeChange();
       }, this.debounceDelay);
@@ -67,6 +77,22 @@ export class MobileLiteManager {
     this.removeResizeListener = () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }
+
+  /**
+   * Implémentation simple de throttle pour limiter la fréquence d'exécution
+   */
+  throttle(func, limit) {
+    let inThrottle;
+    return function() {
+      const args = arguments;
+      const context = this;
+      if (!inThrottle) {
+        func.apply(context, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
     };
   }
 

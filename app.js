@@ -134,7 +134,7 @@ export class VVPlaceApp {
 
           try {
             logger.slider(' Initialisation du SliderManager (on-demand)...');
-            this.sliderManager = new SliderManager();
+            this.sliderManager = new SliderManager(this); // Passer la référence de l'app
             this.sliderManager.init();
             logger.success(' SliderManager initialisé (on-demand)');
           } catch (error) {
@@ -457,5 +457,16 @@ export class VVPlaceApp {
     });
     
     return modalTriggers.length;
+  }
+
+  /**
+   * Gère les changements de mode depuis MobileLiteManager
+   * @param {string} newMode - 'lite' ou 'full'
+   */
+  handleModeChange(newMode) {
+    logger.info(`🔄 VVPlaceApp: Changement de mode vers ${newMode}`);
+    
+    // Ici on pourrait ajouter une logique pour reconfigurer l'app à la volée
+    // Pour l'instant, on laisse MobileLiteManager gérer le rechargement
   }
 }

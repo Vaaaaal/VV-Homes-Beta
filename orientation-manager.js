@@ -1,7 +1,15 @@
+// ==========================================
+// GESTIONNAIRE D'ORIENTATION CENTRALISÉ
+// ==========================================
 import logger from './logger.js';
-// ==========================================
-// GESTIONNAIRE CENTRALISÉ D'ORIENTATION
-// ==========================================
+import { PerformanceOptimizer } from './performance-optimizations.js';
+
+/**
+ * OrientationManager - Coordonne les changements d'orientation pour éviter les conflits
+ * Gère un seul event listener avec debounce adaptatif
+ * Coordonne tous les gestionnaires pour éviter les boucles infinies
+ * OPTIMISÉ: Utilise throttling + debounce hybride pour de meilleures performances
+ */
 
 /**
  * OrientationManager - Coordonne les changements d'orientation pour éviter les conflits

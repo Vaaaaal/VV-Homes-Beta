@@ -12,7 +12,10 @@ import logger from './logger.js';
  * - Gestion des catégories
  */
 export class SliderManager {
-  constructor() {
+  constructor(app = null) {
+    // Référence à l'application principale pour accéder à l'OrientationManager
+    this.app = app;
+    
     // Récupère tous les éléments du slider (sauf le dernier marqué "is-last")
     this.sliderItems = gsap.utils
       .toArray(CONFIG.SELECTORS.SLIDER_ITEM)
@@ -27,7 +30,25 @@ export class SliderManager {
     
     // Éléments de l'indicateur de progression
     this.indicatorBall = document.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
+    
+    // OPTIMISATION: Stocker les références des ScrollTriggers pour un nettoyage efficace
+    this.scrollTriggers = new Set();
     this.indicatorTrack = document.querySelector(CONFIG.SELECTORS.INDICATOR_TRACK);
+    
+    // OPTIMISATION MOBILE: Variables pour la gestion conditionnelle
+    this.isMobileMode = false;
+    this.isInitialized = false;
+    this.sliderContainer = document.querySelector('.slider-panel_list');
+    this.slides = this.sliderItems;
+    
+    // S'abonner aux changements d'orientation via OrientationManager
+    if (this.app && this.app.orientationManager) {
+      this.app.orientationManager.subscribe(
+        'slider-manager', 
+        this.handleOrientationChange.bind(this),
+        5 // Priorité élevée
+      );
+    }
     
   // Reset différé dans init pour laisser d'éventuels styles critiques se poser
   // (anciennement exécuté dans le constructeur)
@@ -43,12 +64,20 @@ export class SliderManager {
    * Initialise tous les composants du slider
    */
   init() {
+    // Détection du mode mobile
+    this.detectMobileMode();
+    
     // Vérifier si on est en mode mobile lite
     const isMobileLite = window.WindowUtils ? window.WindowUtils.isMobileLite() : window.innerWidth < 768;
     
-    if (isMobileLite) {
-      logger.debug(' SliderManager désactivé en mode mobile lite (< 768px)');
-      return;
+    if (this.isMobileMode || isMobileLite) {
+      logger.info('📱 SliderManager: Initialisation en mode mobile (scroll natif, ScrollTriggers OFF)');
+      this.enableNativeScroll();
+      this.isInitialized = true;
+      return; // Sortir tôt pour le mode mobile
+    } else {
+      logger.info('🖥️ SliderManager: Initialisation en mode desktop (ScrollTriggers ON)');
+      // Continuer avec l'initialisation desktop normale
     }
     
     this.immediateReset();            // Reset global centralisé
@@ -56,6 +85,8 @@ export class SliderManager {
     this.resetSliderToStart();        // Positionne après ordre établi
     this.handleDynamicTagInsertion(); // Gère insertion CMS
     this.rebuildScrollSystem();       // Crée triggers + animations + indicateur
+    
+    this.isInitialized = true;
   }
 
   /**
@@ -375,7 +406,9 @@ export class SliderManager {
       };
 
       // Crée un trigger ScrollTrigger pour chaque slide
-      ScrollTrigger.create(triggerConfig);
+      // OPTIMISATION: Stocker la référence pour un nettoyage efficace
+      const trigger = ScrollTrigger.create(triggerConfig);
+      this.scrollTriggers.add(trigger);
     });
   }
 
@@ -641,14 +674,16 @@ export class SliderManager {
 
   /**
    * Détruit seulement les ScrollTriggers liés à ce gestionnaire
+   * OPTIMISATION: Utilise les références stockées au lieu de parcourir tous les triggers
    */
   destroyScrollTriggers() {
-    const allInteractiveSlides = this.getInteractiveSlides();
-    ScrollTrigger.getAll().forEach(trigger => {
-      if (trigger.vars.trigger && allInteractiveSlides.includes(trigger.vars.trigger)) {
+    this.scrollTriggers.forEach(trigger => {
+      if (trigger && !trigger.killed) {
         trigger.kill();
       }
     });
+    this.scrollTriggers.clear();
+    logger.debug(`🧹 SliderManager: ${this.scrollTriggers.size} ScrollTriggers détruits`);
   }
 
   getInteractiveSlides() {
@@ -657,21 +692,193 @@ export class SliderManager {
     return arr;
   }
 
+  // ==========================================
+  // OPTIMISATIONS MOBILES
+  // ==========================================
+
+  /**
+   * Gestionnaire des changements d'orientation depuis OrientationManager
+   */
+  async handleOrientationChange(newOrientation, context) {
+    const wasMobile = this.isMobileMode;
+    this.isMobileMode = context.windowDimensions.width < 768;
+    
+    logger.info(`📱 Slider mode: ${this.isMobileMode ? 'Mobile (ScrollTriggers OFF)' : 'Desktop (ScrollTriggers ON)'}`);
+    
+    // Si on passe de desktop à mobile
+    if (!wasMobile && this.isMobileMode) {
+      this.disableScrollTriggers();
+      this.enableNativeScroll();
+    }
+    // Si on passe de mobile à desktop
+    else if (wasMobile && !this.isMobileMode) {
+      this.enableScrollTriggersMode();
+      this.disableNativeScroll();
+    }
+  }
+
+  /**
+   * Détecte le mode mobile initial
+   */
+  detectMobileMode() {
+    this.isMobileMode = window.innerWidth < 768;
+  }
+
+  /**
+   * Désactive tous les ScrollTriggers du slider
+   */
+  disableScrollTriggers() {
+    logger.info('🚫 Désactivation des ScrollTriggers du slider (mode mobile)');
+    
+    // Détruire tous les ScrollTriggers du slider
+    this.scrollTriggers.forEach(trigger => {
+      if (trigger && trigger.kill) {
+        trigger.kill();
+      }
+    });
+    this.scrollTriggers.clear();
+    
+    // Arrêter toutes les animations GSAP du slider
+    if (this.sliderContainer) {
+      gsap.killTweensOf(this.sliderContainer);
+    }
+    if (this.slides) {
+      gsap.killTweensOf(this.slides);
+    }
+    
+    // Remettre les transforms à zéro
+    if (this.sliderContainer) {
+      gsap.set(this.sliderContainer, { clearProps: "all" });
+    }
+    if (this.slides) {
+      gsap.set(this.slides, { clearProps: "all" });
+    }
+  }
+
+  /**
+   * Active le scroll natif pour mobile
+   */
+  enableNativeScroll() {
+    if (!this.sliderContainer) return;
+    
+    logger.info('📱 Activation du scroll natif mobile');
+    
+    // Convertir en scroll vertical natif
+    this.sliderContainer.style.transform = 'none';
+    this.sliderContainer.style.display = 'block';
+    this.sliderContainer.style.overflowY = 'auto';
+    this.sliderContainer.style.height = 'auto';
+    
+    // Réorganiser les slides en vertical
+    if (this.slides) {
+      this.slides.forEach(slide => {
+        slide.style.transform = 'none';
+        slide.style.width = '100%';
+        slide.style.height = 'auto';
+        slide.style.display = 'block';
+        slide.style.marginBottom = '2rem';
+      });
+    }
+  }
+
+  /**
+   * Réactive les ScrollTriggers pour desktop
+   */
+  enableScrollTriggersMode() {
+    if (this.isMobileMode) return; // Sécurité
+    
+    logger.info('✅ Réactivation des ScrollTriggers du slider (mode desktop)');
+    
+    // Nettoyer d'abord
+    this.disableScrollTriggers();
+    
+    // Restaurer le layout horizontal
+    this.restoreHorizontalLayout();
+    
+    // Recréer les ScrollTriggers
+    this.rebuildScrollSystem();
+  }
+
+  /**
+   * Désactive le scroll natif et restaure le layout horizontal
+   */
+  disableNativeScroll() {
+    this.restoreHorizontalLayout();
+  }
+
+  /**
+   * Restaure le layout horizontal pour desktop
+   */
+  restoreHorizontalLayout() {
+    if (!this.sliderContainer) return;
+    
+    logger.info('🖥️ Restauration du layout horizontal');
+    
+    // Restaurer le container
+    this.sliderContainer.style.display = 'flex';
+    this.sliderContainer.style.overflowY = 'hidden';
+    this.sliderContainer.style.height = '100vh';
+    this.sliderContainer.style.transform = '';
+    
+    // Restaurer les slides
+    if (this.slides) {
+      this.slides.forEach(slide => {
+        slide.style.width = '100vw';
+        slide.style.height = '100vh';
+        slide.style.display = 'flex';
+        slide.style.marginBottom = '0';
+        slide.style.transform = '';
+      });
+    }
+  }
+
+  /**
+   * Détermine si on a besoin de ScrollTriggers individuels
+   */
+  needsIndividualTriggers() {
+    // Seulement si on a des animations spécifiques par slide
+    return this.slides && this.slides.length <= 10 && !this.isLowPerformanceDevice();
+  }
+
+  /**
+   * Détecte si c'est un appareil peu performant
+   */
+  isLowPerformanceDevice() {
+    // Détection basée sur les capacités hardware
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const isSlowConnection = connection && (connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g');
+    const isLowRAM = navigator.deviceMemory && navigator.deviceMemory < 4;
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    return isSlowConnection || isLowRAM || (isMobile && window.innerWidth < 768);
+  }
+
+  // ==========================================
+  // FIN OPTIMISATIONS MOBILES
+  // ==========================================
+
   /**
    * Nettoie les event listeners et les animations
    */
   destroy() {
-    // Se désabonner du gestionnaire centralisé d'orientation
+    // Désabonner de l'OrientationManager
+    if (this.app && this.app.orientationManager) {
+      this.app.orientationManager.unsubscribe('slider-manager');
+    }
+    
+    // Se désabonner du gestionnaire centralisé d'orientation (fallback)
     if (window.orientationManager) {
       window.orientationManager.unsubscribe('SliderManager');
     }
+    
+    // Nettoyer tous les ScrollTriggers
+    this.disableScrollTriggers();
     
     // Nettoie l'event listener d'orientation (fallback)
     if (this.removeOrientationListener) {
       this.removeOrientationListener();
     }
     
-    // Tue tous les ScrollTriggers liés aux slides
-    this.destroyScrollTriggers();
+    logger.info('🗑️ SliderManager détruit');
   }
 }
