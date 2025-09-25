@@ -156,6 +156,9 @@ export class MenuManager {
     // Ajouter les événements pour les boutons actuels
     this.attachCMSButtonEvents();
     
+    // Charger les images différées
+    this.loadDeferredImages();
+    
     // Randomiser les cartes de review
     this.randomizeReviewCards().then(() => {
       logger.success(' Cartes de review randomisées');
@@ -276,6 +279,9 @@ export class MenuManager {
       // Mettre à jour les positions si nécessaire
       this.updatePanelPositions();
       
+      // Charger les nouvelles images différées
+      this.loadDeferredImages();
+      
       // Randomiser à nouveau les cartes de review si de nouveaux éléments
       this.randomizeReviewCards();
     }
@@ -295,36 +301,48 @@ export class MenuManager {
   async waitForFinsweetAttributes() {
   const maxWaitTime = FINDSWEET_MAX_WAIT; // 8 secondes max
   const checkInterval = FINDSWEET_CHECK_INTERVAL; // Vérifier toutes les 200ms
-    const startTime = Date.now();
-    
-    // Vérification immédiate
-    if (this.checkFinsweetLoaded()) {
-      logger.success(' Finsweet Attributes déjà disponible');
-      return true;
-    }
-    
-    logger.log('⏳ Attente de Finsweet Attributes...');
-    
-    return new Promise((resolve) => {
-      const checkLoad = () => {
-        if (this.checkFinsweetLoaded()) {
-          logger.success(' Finsweet Attributes détecté');
-          resolve(true);
-          return;
-        }
-        
-        if (Date.now() - startTime > maxWaitTime) {
-          logger.warn(' Timeout Finsweet Attributes - Continuation sans attendre');
-          resolve(false); // Ne pas rejeter, juste continuer
-          return;
-        }
-        
-        setTimeout(checkLoad, checkInterval);
-      };
-      
-      checkLoad();
-    });
+  const startTime = Date.now();
+
+  // Vérification immédiate
+  if (this.checkFinsweetLoaded()) {
+    logger.success(' Finsweet Attributes déjà disponible');
+    return true;
   }
+
+  logger.log('⏳ Attente de Finsweet Attributes...');
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    // Ajout : écoute de l'événement fs-cmsload avec afterRender
+    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
+    listContainers.forEach(container => {
+      container.addEventListener('fs-cmsload', (event) => {
+        if (event.detail?.type === 'afterRender' && !resolved) {
+          resolved = true;
+          logger.success(' Finsweet Attributes afterRender détecté');
+          resolve(true);
+        }
+      }, { once: true });
+    });
+
+    // Fallback polling
+    const checkLoad = () => {
+      if (resolved) return;
+      if (this.checkFinsweetLoaded()) {
+        logger.success(' Finsweet Attributes détecté (polling)');
+        resolve(true);
+        return;
+      }
+      if (Date.now() - startTime > maxWaitTime) {
+        logger.warn(' Timeout Finsweet Attributes - Continuation sans attendre');
+        resolve(false); // Ne pas rejeter, juste continuer
+        return;
+      }
+      setTimeout(checkLoad, checkInterval);
+    };
+    checkLoad();
+  });
+}
 
   /**
    * Vérifie si Finsweet est chargé de manière optimisée
@@ -1162,6 +1180,39 @@ export class MenuManager {
       }
     }
     
+  }
+
+  // ==========================================
+  // GESTION DES IMAGES DIFFÉRÉES
+  // ==========================================
+
+  /**
+   * Charge toutes les images avec data-fetch-img après le rendu Nest
+   */
+  loadDeferredImages() {
+    const imageElements = document.querySelectorAll('[data-fetch-img]');
+    
+    if (imageElements.length === 0) {
+      return;
+    }
+    
+    logger.log(`🖼️ Chargement de ${imageElements.length} images différées...`);
+    
+    imageElements.forEach((element) => {
+      const imageUrl = element.dataset.fetchImg;
+      
+      if (!imageUrl) {
+        return;
+      }
+      
+      // Appliquer directement l'URL comme src
+      element.src = imageUrl;
+      
+      // Supprimer l'attribut pour éviter de recharger
+      element.removeAttribute('data-fetch-img');
+    });
+    
+    logger.success(`✅ ${imageElements.length} images chargées`);
   }
 
   // Méthodes RichTextManager supprimées (intégrées à WindowUtils)
