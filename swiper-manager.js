@@ -151,10 +151,13 @@ export class SwiperManager {
     // Crée le swiper principal pour les previews 1
     const swiperMain = new Swiper(swiperElementOne, {
       slidesPerView: 1,
-      spaceBetween: 10,
+      spaceBetween: 0,
       loop: true,
-      direction: 'vertical',
-      // autoHeight: true,
+      breakpoints: {
+        1024: {
+          slidesPerView: 2,
+        },
+      },
       mousewheel: {
         enabled: true,
       },

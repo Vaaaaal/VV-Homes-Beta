@@ -207,7 +207,7 @@ export class ModalManager {
             swiperMain.removeAllSlides();
             
             // Ajoute les nouveaux slides
-            slides.forEach(slideContent => {
+            slides.forEach((slideContent, index) => {
               const slideContentCopy = slideContent.cloneNode(true);
               slideContentCopy.querySelector(".menu-preview_title").classList.add("modal-preview_title");
               slideContentCopy.querySelector(".menu-preview_title").classList.remove("menu-preview_title");
@@ -235,7 +235,7 @@ export class ModalManager {
               // slideContentCopy.prepend(mediaSourceCopy);
               // mediaSource.remove();
 
-              swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
+              swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}"><div class="modal-preview-background"></div><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
             });
             
             // Met à jour les swipers
@@ -263,7 +263,7 @@ export class ModalManager {
         scale: 1,
         duration: CONFIG.ANIMATION.DURATION,
         ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      }, "-=0.05"); // Légèrement en même temps que l'opacité
+      }, "<"); // En même temps que l'opacité
 
   }
 
@@ -281,10 +281,6 @@ export class ModalManager {
     timeline.to(modalToClose.querySelector('.slider-panel_modal_content'), {
       opacity: 0,
       scale: 0.8,
-      duration: CONFIG.ANIMATION.DURATION,
-      ease: CONFIG.ANIMATION.EASE.POWER2.IN,
-    }).to(modalToClose, {
-      opacity: 0,
       duration: CONFIG.ANIMATION.DURATION,
       ease: CONFIG.ANIMATION.EASE.POWER2.IN,
       onComplete: () => {
@@ -308,7 +304,7 @@ export class ModalManager {
           swiperMain.update();
         }
       }
-    }, "-=0.05"); // Légèrement en même temps que l'opacité
+    });
 
     this.currentModal = null;
   }
