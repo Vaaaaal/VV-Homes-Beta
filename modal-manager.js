@@ -209,19 +209,27 @@ export class ModalManager {
             // Ajoute les nouveaux slides
             slides.forEach((slideContent, index) => {
               const slideContentCopy = slideContent.cloneNode(true);
-              slideContentCopy.querySelector(".menu-preview_title").classList.add("modal-preview_title");
-              slideContentCopy.querySelector(".menu-preview_title").classList.remove("menu-preview_title");
-              slideContentCopy.querySelector(".modal-preview_title").classList.remove("text-size-xsmall");
+              const content = document.createElement('div');
+              content.classList.add('modal-preview-content');
+
+              const title = slideContentCopy.querySelector(".menu-preview_title");
+              title.classList.add("modal-preview_title");
+              title.classList.remove("menu-preview_title");
+              title.classList.remove("text-size-xsmall");
+              content.append(title);
 
               const mediaSource = slideContentCopy.querySelector(".media_source");
               const mediaSourceCopy = mediaSource.cloneNode(true);
               mediaSourceCopy.classList.add("is-preview-modal");
-              slideContentCopy.append(mediaSourceCopy);
+              content.append(mediaSourceCopy);
               mediaSource.remove();
 
+
               // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
-              const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").querySelector("img").cloneNode(true);
+              const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").cloneNode(true);
               image.classList.add("modal-preview_cover");
+              image.classList.add("modal-preview_cover_wrap");
+              image.classList.remove("menu-preview_cover_wrap");
               slideContentCopy.querySelector(".menu-preview_cover_wrap").remove();
               slideContentCopy.prepend(image);
               
@@ -235,7 +243,13 @@ export class ModalManager {
               // slideContentCopy.prepend(mediaSourceCopy);
               // mediaSource.remove();
 
-              swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}"><div class="modal-preview-background"></div><div class="modal-preview-element">${slideContentCopy.innerHTML}</div></div>`);
+              swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}">
+                <div class="modal-preview-background"></div>
+                <div class="modal-preview-element">
+                  ${slideContentCopy.innerHTML}
+                  <div class="modal-preview-content">${content.innerHTML}</div>
+                </div>
+              </div>`);
             });
             
             // Met à jour les swipers

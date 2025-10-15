@@ -153,6 +153,10 @@ export class SwiperManager {
       slidesPerView: 1,
       spaceBetween: 0,
       loop: true,
+      freeMode: {
+        enabled: true,
+        sticky: true,
+      },
       breakpoints: {
         1024: {
           slidesPerView: 2,
