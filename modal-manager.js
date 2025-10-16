@@ -227,7 +227,7 @@ export class ModalManager {
 
               // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
               const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").cloneNode(true);
-              image.classList.add("modal-preview_cover");
+              image.querySelector("img").classList.add("modal-preview_cover");
               image.classList.add("modal-preview_cover_wrap");
               image.classList.remove("menu-preview_cover_wrap");
               slideContentCopy.querySelector(".menu-preview_cover_wrap").remove();
