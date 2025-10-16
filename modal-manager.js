@@ -246,6 +246,7 @@ export class ModalManager {
               swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}">
                 <div class="modal-preview-background"></div>
                 <div class="modal-preview-element">
+                  <div></div>
                   ${slideContentCopy.innerHTML}
                   <div class="modal-preview-content">${content.innerHTML}</div>
                 </div>
