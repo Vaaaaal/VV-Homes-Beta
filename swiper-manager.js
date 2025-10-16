@@ -152,31 +152,41 @@ export class SwiperManager {
     const swiperMain = new Swiper(swiperElementOne, {
       slidesPerView: 1,
       spaceBetween: 0,
-      loop: true,
+      // loop: true,
       freeMode: {
         enabled: true,
-        // sticky: true,
+      },
+      mousewheel: {
+        enabled: true,
       },
       breakpoints: {
         1024: {
           slidesPerView: 2,
         },
       },
-      mousewheel: {
-        enabled: true,
-      },
 			on: {
-				slideChange: (element) => {
-					const count = element.slides.length;
-					const realIndex = element.realIndex;
-					const indicatorBall = document.querySelector(".slider-panel_modal_indicators-scroller_line_ball");
-
-					if (indicatorBall) {
+        // New version without loop
+        progress: (swiper, progress) => {
+          const indicatorBall = document.querySelector(".slider-panel_modal_indicators-scroller_line_ball");
+          if (indicatorBall) {
 						gsap.to(indicatorBall, {
-							left: `${realIndex / (count - 1) * 100}%`,
+							left: `${progress * 100}%`,
 						});
 					}
-				},
+        },
+
+        // // Ancienne version avec loop
+				// slideChange: (element) => {
+				// 	const count = element.slides.length;
+				// 	const realIndex = element.realIndex;
+				// 	const indicatorBall = document.querySelector(".slider-panel_modal_indicators-scroller_line_ball");
+
+				// 	if (indicatorBall) {
+				// 		gsap.to(indicatorBall, {
+				// 			left: `${realIndex / (count - 1) * 100}%`,
+				// 		});
+				// 	}
+				// },
 			},
     });
     
