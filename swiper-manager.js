@@ -155,7 +155,7 @@ export class SwiperManager {
       loop: true,
       freeMode: {
         enabled: true,
-        sticky: true,
+        // sticky: true,
       },
       breakpoints: {
         1024: {
