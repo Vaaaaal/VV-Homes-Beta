@@ -17,6 +17,12 @@ export class LoaderManagerLite {
     // État du loader
     this.isLoading = false;
     this.isInitialized = false;
+
+    // Navigation menu différée (alignée sur LoaderManager complet)
+    this.menuNavigationHandler = null;
+    this.pendingMenuNavigation = null;
+    this.deferAutoStart = false;
+    this.specialFadeAutoStartTimeout = null;
   }
 
   /**
@@ -44,6 +50,9 @@ export class LoaderManagerLite {
 
       // Configurer l'écoute du touch/clic sur le loader
       this.initLoaderTouchListener();
+
+      // Rejouer la navigation menu différée si nécessaire
+      this.maybeNavigateMenuFromLoader();
       
       // Ne pas configurer l'écoute du logo en mode mobile lite
       // Le logo doit garder son comportement normal (fermer le menu)
@@ -56,38 +65,53 @@ export class LoaderManagerLite {
   }
 
   /**
-   * Configure l'écoute du touch/clic sur le loader fullscreen
+   * Injection du handler de navigation menu (aligné avec LoaderManager complet)
    */
-  initLoaderTouchListener() {
-    if (!this.loaderElement) {
-      logger.debug(' Loader element non trouvé pour l\'écoute du touch');
+  setMenuNavigationHandler(handler) {
+    if (typeof handler !== 'function') {
+      this.menuNavigationHandler = null;
       return;
     }
+    this.menuNavigationHandler = handler;
+    if (this.pendingMenuNavigation) {
+      this.menuNavigationHandler(
+        this.pendingMenuNavigation.panelName,
+        { skipAnimation: this.pendingMenuNavigation.skipAnimation }
+      );
+      this.pendingMenuNavigation = null;
+    }
+  }
 
-    const handleLoaderTouch = (e) => {
-      e.preventDefault();
-      logger.info(' Touch/clic sur loader détecté - lancement du fade out');
-      this.startLoader();
-      
-      // Retirer l'écouteur après le premier touch pour éviter les doubles déclenchements
-      this.removeLoaderTouchListener();
-    };
+  requestMenuNavigation({ panelName, skipAnimation = false } = {}) {
+    if (!panelName) return;
+    if (this.menuNavigationHandler) {
+      this.menuNavigationHandler(panelName, { skipAnimation });
+      return;
+    }
+    this.pendingMenuNavigation = { panelName, skipAnimation };
+  }
 
-    // Écouter à la fois touch et click pour compatibilité
-    this.loaderElement.addEventListener('touchstart', handleLoaderTouch, { passive: false });
-    this.loaderElement.addEventListener('click', handleLoaderTouch);
-    
-    // Style pour indiquer que c'est interactif
-    this.loaderElement.style.cursor = 'pointer';
-    
-    // Sauvegarder pour pouvoir nettoyer
-    this.removeLoaderTouchListener = () => {
-      this.loaderElement.removeEventListener('touchstart', handleLoaderTouch);
-      this.loaderElement.removeEventListener('click', handleLoaderTouch);
-      this.loaderElement.style.cursor = '';
-    };
-    
-    logger.debug(' Écoute du touch/clic sur loader configurée');
+  maybeNavigateMenuFromLoader() {
+    const targetPanelName = sessionStorage.getItem('fromArticles') || null;
+    if (!targetPanelName) return;
+
+    this.deferAutoStart = true;
+    this.requestMenuNavigation({ panelName: targetPanelName, skipAnimation: true });
+    sessionStorage.removeItem('fromArticles');
+    this.scheduleSpecialFadeAutoStart();
+  }
+
+  scheduleSpecialFadeAutoStart(delay = 1000) {
+    if (this.specialFadeAutoStartTimeout) {
+      clearTimeout(this.specialFadeAutoStartTimeout);
+    }
+    this.specialFadeAutoStartTimeout = setTimeout(() => {
+      this.specialFadeAutoStartTimeout = null;
+      this.deferAutoStart = false;
+      if (!this.isLoading) {
+        this.startLoader();
+      }
+    }, delay);
   }
 
   /**
@@ -96,6 +120,12 @@ export class LoaderManagerLite {
   startLoader() {
     if (this.isLoading) return;
     this.isLoading = true;
+    this.deferAutoStart = false;
+
+    if (typeof this.removeLoaderTouchListener === 'function') {
+      this.removeLoaderTouchListener();
+      this.removeLoaderTouchListener = null;
+    }
 
     logger.loading(' Démarrage du loader lite...');
 
@@ -135,6 +165,7 @@ export class LoaderManagerLite {
     document.body.style.height = '';
 
     this.isLoading = false;
+    this.deferAutoStart = false;
     
     // Déclencher l'événement de fin de loader
     window.dispatchEvent(new CustomEvent('loaderComplete'));
@@ -151,11 +182,9 @@ export class LoaderManagerLite {
 
     const handleLoaderTouch = (e) => {
       e.preventDefault();
+      if (this.isLoading || this.deferAutoStart) return;
       logger.info(' Touch/clic sur loader détecté - lancement du fade out');
       this.startLoader();
-      
-      // Retirer l'écouteur après le premier touch pour éviter les doubles déclenchements
-      this.removeLoaderTouchListener();
     };
 
     // Écouter à la fois touch et click pour compatibilité
@@ -229,6 +258,11 @@ export class LoaderManagerLite {
     
     this.isInitialized = false;
     this.isLoading = false;
+
+    if (this.specialFadeAutoStartTimeout) {
+      clearTimeout(this.specialFadeAutoStartTimeout);
+      this.specialFadeAutoStartTimeout = null;
+    }
     
     logger.debug(' LoaderManagerLite détruit');
   }
