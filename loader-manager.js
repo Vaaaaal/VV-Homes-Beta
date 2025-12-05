@@ -297,24 +297,25 @@ export class LoaderManager {
 		}
 		
 		// Détection de l'orientation pour adapter l'animation
-		const currentOrientation = this.getCurrentOrientation();
-		const isHorizontal = currentOrientation === "horizontal";
+    const currentOrientation = this.getCurrentOrientation();
+    const isHorizontal = currentOrientation === "horizontal";
 		
 		logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
 
 		const useFadeOutOnly = this.shouldSkipLoaderAnimation;
 		this.shouldSkipLoaderAnimation = false;
 
-		if (isHorizontal) {
-      if (useFadeOutOnly) {
-        this._playVertical({ forceDesktopFade: true });
-      } else {
+    if (useFadeOutOnly) {
+        this._playVertical({ forceDesktopFade: isHorizontal });
+        return;
+      }
+
+    if (isHorizontal) {
         gsap.set(this.loaderElement, { zIndex: -1 });
         this._playHorizontal({ replay:false });
+      } else {
+        this._playVertical();
       }
-    } else {
-      this._playVertical();
-    }
 	}
 	
 	/**
@@ -479,6 +480,9 @@ export class LoaderManager {
         gsap.set(this.mainList, { xPercent: 0, clearProps: 'transform' });
       }
       this.restoreScrollCapability();
+      if (forceDesktopFade) {
+        this.unlockMainListScroll();
+      }
       if (window.ScrollTrigger) {
         ScrollTrigger.refresh();
         if (this.smoothScrollManager) this.smoothScrollManager.disableResetWatchdog();

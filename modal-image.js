@@ -377,7 +377,7 @@ export class ImageModal {
 .vv-image-modal-center{position:relative;display:flex;align-items:center;justify-content:center;max-width:80vw;max-height:80vh;padding:10px;box-sizing:border-box}
 .vv-image-modal-img{max-width:80vw;max-height:80vh;width:auto;height:auto;display:block;box-shadow:0 10px 30px rgba(0,0,0,0.2);transform:scale(.98);transition:transform .18s ease,opacity .18s ease;opacity:0}
 .vv-image-modal-open .vv-image-modal-img{transform:scale(1);opacity:1}
-.vv-image-modal-close{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.5);color:#fff;border:0;border-radius:20px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer}
+.vv-image-modal-close{position:absolute;top:20px;right:20px;background:rgba(0,0,0,0.5);color:#fff;border:0;border-radius:4px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer}
 @media (max-width:520px){.vv-image-modal-img{max-width:94vw;max-height:80vh}}
 `;
     const style = document.createElement('style');
