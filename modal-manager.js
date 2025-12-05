@@ -11,7 +11,8 @@ import { CONFIG } from './config.js';
  * - Association entre triggers et modales via data-attributes
  */
 export class ModalManager {
-  constructor(swiperManager = null) {
+  constructor() {
+  // constructor(swiperManager = null) {
     // Récupère tous les éléments déclencheurs de modales
     this.modalTriggers = gsap.utils.toArray(CONFIG.SELECTORS.MODAL_TRIGGERS);
     
@@ -28,7 +29,7 @@ export class ModalManager {
     this.isInitialized = false;
 
     // Référence au gestionnaire de swipers
-    this.swiperManager = swiperManager;
+    // this.swiperManager = swiperManager;
   }
 
   /**
@@ -196,66 +197,66 @@ export class ModalManager {
           // Met à jour le contenu de la modale avec le contenu du dossier
           const folderContentElement = gsap.utils.toArray(content.querySelectorAll('.menu-preview_wrap'));
           // Récupération des swipers initié dans swiper-manager
-          const swiperMain = this.swiperManager?.get('modal-previews-1');
+          // const swiperMain = this.swiperManager?.get('modal-previews-1');
 
-          if (this.swiperManager.has('modal-previews-1')) {
-            // Prépare les slides
-            const slides = folderContentElement.map(item => item);
+          // if (this.swiperManager.has('modal-previews-1')) {
+          //   // Prépare les slides
+          //   const slides = folderContentElement.map(item => item);
             
-            // Met à jour les swipers avec le nouveau contenu
-            // Détruit d'abord les slides existants
-            swiperMain.removeAllSlides();
+          //   // Met à jour les swipers avec le nouveau contenu
+          //   // Détruit d'abord les slides existants
+          //   swiperMain.removeAllSlides();
             
-            // Ajoute les nouveaux slides
-            slides.forEach((slideContent, index) => {
-              const slideContentCopy = slideContent.cloneNode(true);
-              const content = document.createElement('div');
-              content.classList.add('modal-preview-content');
+          //   // Ajoute les nouveaux slides
+          //   slides.forEach((slideContent, index) => {
+          //     const slideContentCopy = slideContent.cloneNode(true);
+          //     const content = document.createElement('div');
+          //     content.classList.add('modal-preview-content');
 
-              const title = slideContentCopy.querySelector(".menu-preview_title");
-              title.classList.add("modal-preview_title");
-              title.classList.remove("menu-preview_title");
-              title.classList.remove("text-size-xsmall");
-              content.append(title);
+          //     const title = slideContentCopy.querySelector(".menu-preview_title");
+          //     title.classList.add("modal-preview_title");
+          //     title.classList.remove("menu-preview_title");
+          //     title.classList.remove("text-size-xsmall");
+          //     content.append(title);
 
-              const mediaSource = slideContentCopy.querySelector(".media_source");
-              const mediaSourceCopy = mediaSource.cloneNode(true);
-              mediaSourceCopy.classList.add("is-preview-modal");
-              content.append(mediaSourceCopy);
-              mediaSource.remove();
+          //     const mediaSource = slideContentCopy.querySelector(".media_source");
+          //     const mediaSourceCopy = mediaSource.cloneNode(true);
+          //     mediaSourceCopy.classList.add("is-preview-modal");
+          //     content.append(mediaSourceCopy);
+          //     mediaSource.remove();
 
 
-              // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
-              const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").cloneNode(true);
-              image.querySelector("img").classList.add("modal-preview_cover");
-              image.classList.add("modal-preview_cover_wrap");
-              image.classList.remove("menu-preview_cover_wrap");
-              slideContentCopy.querySelector(".menu-preview_cover_wrap").remove();
-              slideContentCopy.prepend(image);
+          //     // slideContentCopy.querySelector(".menu-preview_cover_wrap").classList.add("modal-preview_cover_wrap");
+          //     const image = slideContentCopy.querySelector(".menu-preview_cover_wrap").cloneNode(true);
+          //     image.querySelector("img").classList.add("modal-preview_cover");
+          //     image.classList.add("modal-preview_cover_wrap");
+          //     image.classList.remove("menu-preview_cover_wrap");
+          //     slideContentCopy.querySelector(".menu-preview_cover_wrap").remove();
+          //     slideContentCopy.prepend(image);
               
-              // slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
-              // slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
+          //     // slideContentCopy.querySelector(".menu-preview_cover").classList.add("modal-preview_cover");
+          //     // slideContentCopy.querySelector(".menu-preview_cover").classList.remove("menu-preview_cover");
 
-              // Traite le contenu pour retirer media_source pour le deuxième swiper
-              // const mediaSource = slideContentCopy.querySelector(".media_source");
-              // const mediaSourceCopy = mediaSource.cloneNode(true);
-              // mediaSourceCopy.classList.add("is-preview-modal");
-              // slideContentCopy.prepend(mediaSourceCopy);
-              // mediaSource.remove();
+          //     // Traite le contenu pour retirer media_source pour le deuxième swiper
+          //     // const mediaSource = slideContentCopy.querySelector(".media_source");
+          //     // const mediaSourceCopy = mediaSource.cloneNode(true);
+          //     // mediaSourceCopy.classList.add("is-preview-modal");
+          //     // slideContentCopy.prepend(mediaSourceCopy);
+          //     // mediaSource.remove();
 
-              swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}">
-                <div class="modal-preview-background"></div>
-                <div class="modal-preview-element">
-                  <div></div>
-                  ${slideContentCopy.innerHTML}
-                  <div class="modal-preview-content">${content.innerHTML}</div>
-                </div>
-              </div>`);
-            });
+          //     swiperMain.appendSlide(`<div class="swiper-slide is-preview is-${index + 1}">
+          //       <div class="modal-preview-background"></div>
+          //       <div class="modal-preview-element">
+          //         <div></div>
+          //         ${slideContentCopy.innerHTML}
+          //         <div class="modal-preview-content">${content.innerHTML}</div>
+          //       </div>
+          //     </div>`);
+          //   });
             
-            // Met à jour les swipers
-            swiperMain.update();
-          }
+          //   // Met à jour les swipers
+          //   swiperMain.update();
+          // }
         }
       }
     }
@@ -303,21 +304,21 @@ export class ModalManager {
         gsap.set(modalToClose, { display: 'none' });
 
         // Récupération des swipers initié dans swiper-manager
-        const swiperMain = this.swiperManager?.get('modal-previews-1');
+        // const swiperMain = this.swiperManager?.get('modal-previews-1');
 
-        if (this.swiperManager.has('modal-previews-1')) {
-          // Met à jour les swipers avec un contenu loader
-          // Détruit d'abord les slides existants
-          swiperMain.removeAllSlides();
+        // if (this.swiperManager.has('modal-previews-1')) {
+        //   // Met à jour les swipers avec un contenu loader
+        //   // Détruit d'abord les slides existants
+        //   swiperMain.removeAllSlides();
           
-          // Ajoute les nouveaux slides
-          for (let i = 0; i < 5; i++) {
-            swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
-          };
+        //   // Ajoute les nouveaux slides
+        //   for (let i = 0; i < 5; i++) {
+        //     swiperMain.appendSlide(`<div class="swiper-slide is-preview"><div class="loader"></div></div>`);
+        //   };
           
-          // Met à jour les swipers
-          swiperMain.update();
-        }
+        //   // Met à jour les swipers
+        //   swiperMain.update();
+        // }
       }
     });
 

@@ -40,18 +40,24 @@ export class LoaderManager {
     this.smoothScrollManager = smoothScrollManager;
     
     // Références aux éléments DOM du loader
-  this.loaderElement = document.querySelector(SELECTORS.LOADER_WRAP);
-  this.loaderContentOne = this.loaderElement?.querySelector(SELECTORS.LOADER_ONE);
-  this.loaderContentThree = this.loaderElement?.querySelector(SELECTORS.LOADER_IMAGES);
+    this.loaderElement = document.querySelector(SELECTORS.LOADER_WRAP);
+    this.loaderContentOne = this.loaderElement?.querySelector(SELECTORS.LOADER_ONE);
+    this.loaderContentThree = this.loaderElement?.querySelector(SELECTORS.LOADER_IMAGES);
     this.sliderItems = [];
-  this.navbar = document.querySelector(SELECTORS.NAVBAR);
-  this.mainList = document.querySelector(SELECTORS.MAIN_LIST);
+    this.navbar = document.querySelector(SELECTORS.NAVBAR);
+    this.mainList = document.querySelector(SELECTORS.MAIN_LIST);
+    this.menuNavigationHandler = null;
+    this.pendingMenuNavigation = null;
 
     // État du loader
     this.isLoading = false;
     this.isInitialized = false;
-	// Helpers liés aux callbacks pour éviter recréation
-	this._onMainListEntryComplete = this._onMainListEntryComplete.bind(this);
+    this.shouldSkipLoaderAnimation = false;
+    this.deferAutoStart = false;
+    this.specialFadeAutoStartTimeout = null;
+
+    // Helpers liés aux callbacks pour éviter recréation
+    this._onMainListEntryComplete = this._onMainListEntryComplete.bind(this);
   }
 
   // ==========================================
@@ -105,54 +111,115 @@ export class LoaderManager {
 
     
     try {
-		// this.isInitialized = true;
-		
-		// Force un reset robuste avant tout
-		this.forceCompleteReset();
-		
-		if (!this.sliderManager) {
-			logger.error('❌ SliderManager non disponible');
-			return;
-		}
+      // this.isInitialized = true;
+      
+      // Force un reset robuste avant tout
+      this.forceCompleteReset();
+      
+      if (!this.sliderManager) {
+        logger.error('❌ SliderManager non disponible');
+        return;
+      }
 
-		if(!this.navbar) {
-		// if(!this.navbar || !this.mainList) {
-			logger.error('❌ Navbar ou liste principale non trouvée');
-			return;
-		}
+      if(!this.navbar) {
+      // if(!this.navbar || !this.mainList) {
+        logger.error('❌ Navbar ou liste principale non trouvée');
+        return;
+      }
 
-  this._prepareInitialVisualState();
+      this._prepareInitialVisualState();
 
-		// Détection de l'orientation pour adapter l'animation
-		const currentOrientation = this.getCurrentOrientation();
-		const isHorizontal = currentOrientation === "horizontal";
-		
-		logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
+      // Détection de l'orientation pour adapter l'animation
+      const currentOrientation = this.getCurrentOrientation();
+      const isHorizontal = currentOrientation === "horizontal";
+      
+      logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
 
-    if (isHorizontal) this._prepareHorizontalEntry();
-		
-		// Bloquer le scroll Lenis sur mainList dès l'initialisation
-		this.mainList.setAttribute('data-lenis-prevent', 'true');
-		
-  this._preparePanelsInfos();
+      if (isHorizontal) this._prepareHorizontalEntry();
+      
+      // Bloquer le scroll Lenis sur mainList dès l'initialisation
+      this.mainList.setAttribute('data-lenis-prevent', 'true');
+      
+      this._preparePanelsInfos();
 
-  this._lockLenis();
+      this._lockLenis();
 
-		document.body.style.overflow = 'hidden';
-		document.body.style.height = '100vh';
-		
-  this._cloneInitialSliderItems();
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+      
+      this._cloneInitialSliderItems();
 
-		logger.success('✅ LoaderManager initialisé avec succès');
+      // Point d'accroche pour déclencher la navigation menu dès l'init si nécessaire
+      this.maybeNavigateMenuFromLoader();
 
-		// Ajout de l'évènement de chargement
-		this.addLoadEvent();
+      logger.success('✅ LoaderManager initialisé avec succès');
+
+      // Ajout de l'évènement de chargement
+      this.addLoadEvent();
       
       return true;
     } catch (error) {
       logger.error('❌ Erreur lors de l\'initialisation du LoaderManager:', error);
       return false;
     }
+  }
+
+  /**
+   * Enregistre un handler de navigation menu (injecté par MenuManager)
+   * Permet de rejouer une navigation différée si elle a été demandée avant injection
+   */
+  setMenuNavigationHandler(handler) {
+    if (typeof handler !== 'function') {
+      this.menuNavigationHandler = null;
+      return;
+    }
+    this.menuNavigationHandler = handler;
+    if (this.pendingMenuNavigation) {
+      this.menuNavigationHandler(
+        this.pendingMenuNavigation.panelName,
+        { skipAnimation: this.pendingMenuNavigation.skipAnimation }
+      );
+      this.pendingMenuNavigation = null;
+    }
+  }
+
+  /**
+   * File une requête de navigation menu, exécutée immédiatement ou différée selon disponibilité
+   */
+  requestMenuNavigation({ panelName, skipAnimation = false } = {}) {
+    if (!panelName) return;
+    if (this.menuNavigationHandler) {
+      this.menuNavigationHandler(panelName, { skipAnimation });
+      return;
+    }
+    this.pendingMenuNavigation = { panelName, skipAnimation };
+  }
+
+  /**
+   * Hook de base appelé à l'init si l'utilisateur vient d'une page d'articles (basé sur sessionStorage)
+   */
+  maybeNavigateMenuFromLoader() {
+    const targetPanelName = sessionStorage.getItem("fromArticles") || null;
+    if (!targetPanelName) return;
+    this.shouldSkipLoaderAnimation = true;
+    this.deferAutoStart = true;
+
+    this.requestMenuNavigation({ panelName: targetPanelName, skipAnimation: true });
+    sessionStorage.removeItem("fromArticles");
+    this.scheduleSpecialFadeAutoStart();
+  }
+
+  scheduleSpecialFadeAutoStart(delay = 1000) {
+    if (this.specialFadeAutoStartTimeout) {
+      clearTimeout(this.specialFadeAutoStartTimeout);
+    }
+    this.specialFadeAutoStartTimeout = setTimeout(() => {
+      this.specialFadeAutoStartTimeout = null;
+      this.deferAutoStart = false;
+      if (!this.isLoading) {
+        this.startLoading();
+      }
+    }, delay);
   }
 
   /**
@@ -191,19 +258,19 @@ export class LoaderManager {
 		// 	return;
 		// }
 
-		this._onLoaderClick = () => {
-			if (this.isLoading) return;
+    this._onLoaderClick = () => {
+      if (this.isLoading || this.deferAutoStart) return;
 			logger.debug('🔄 LoaderManager - déclenchement via click');
 
 			this.startLoading();
 		};
-		this._onLoaderWheel = () => {
-			if (this.isLoading) return;
+    this._onLoaderWheel = () => {
+      if (this.isLoading || this.deferAutoStart) return;
 			logger.debug('🔄 LoaderManager - déclenchement via wheel');
 			this.startLoading();
 		};
-		this._onLoaderTouchStart = () => {
-			if (this.isLoading) return;
+    this._onLoaderTouchStart = () => {
+      if (this.isLoading || this.deferAutoStart) return;
 			logger.debug('🔄 LoaderManager - déclenchement via touchstart');
 			this.startLoading();
 		};
@@ -235,9 +302,16 @@ export class LoaderManager {
 		
 		logger.debug(`📱 Orientation détectée: ${currentOrientation}`);
 
+		const useFadeOutOnly = this.shouldSkipLoaderAnimation;
+		this.shouldSkipLoaderAnimation = false;
+
 		if (isHorizontal) {
-      gsap.set(this.loaderElement, { zIndex: -1 });
-      this._playHorizontal({ replay:false });
+      if (useFadeOutOnly) {
+        this._playVertical({ forceDesktopFade: true });
+      } else {
+        gsap.set(this.loaderElement, { zIndex: -1 });
+        this._playHorizontal({ replay:false });
+      }
     } else {
       this._playVertical();
     }
@@ -382,9 +456,9 @@ export class LoaderManager {
   }
 
 	/**
-	 * Crée l'animation pour le mode vertical (mobile)
+	 * Crée l'animation pour le mode vertical (mobile ou fade-out forcé sur desktop)
 	 */
-  _playVertical() {
+  _playVertical({ forceDesktopFade = false } = {}) {
     const tl = gsap.timeline();
     tl.to(this.loaderContentOne, { opacity:0, duration:DUR.V_FADE, onComplete:()=>{
       logger.debug('✅ Animation loader phase 1');
@@ -396,7 +470,14 @@ export class LoaderManager {
       this.loaderContentThree?.classList.add('is-active');
       this.loaderElement.classList.remove('is-active');
       this.isLoading = false;
-      this.loaderElement.remove();
+      if (forceDesktopFade) {
+        gsap.set(this.loaderElement, { opacity: 0, display: 'none', pointerEvents: 'none' });
+      } else {
+        this.loaderElement.remove();
+      }
+      if (forceDesktopFade && this.mainList) {
+        gsap.set(this.mainList, { xPercent: 0, clearProps: 'transform' });
+      }
       this.restoreScrollCapability();
       if (window.ScrollTrigger) {
         ScrollTrigger.refresh();
@@ -768,6 +849,11 @@ export class LoaderManager {
 		if (this._onLoaderWheel)      this.loaderElement.removeEventListener('wheel', this._onLoaderWheel);
 		if (this._onLoaderTouchStart) this.loaderElement.removeEventListener('touchstart', this._onLoaderTouchStart);
 	}
+
+  if (this.specialFadeAutoStartTimeout) {
+    clearTimeout(this.specialFadeAutoStartTimeout);
+    this.specialFadeAutoStartTimeout = null;
+  }
     
     this.isInitialized = false;
     this.isLoading = false;

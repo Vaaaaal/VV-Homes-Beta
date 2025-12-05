@@ -157,7 +157,7 @@ export class MenuManager {
     this.attachCMSButtonEvents();
     
     // Charger les images différées
-    this.loadDeferredImages();
+    this.loadDeferredMedia();
     
     // Randomiser les cartes de review
     this.randomizeReviewCards().then(() => {
@@ -280,7 +280,7 @@ export class MenuManager {
       this.updatePanelPositions();
       
       // Charger les nouvelles images différées
-      this.loadDeferredImages();
+      this.loadDeferredMedia();
       
       // Randomiser à nouveau les cartes de review si de nouveaux éléments
       this.randomizeReviewCards();
@@ -455,7 +455,7 @@ export class MenuManager {
    * Navigue directement vers un panel en ouvrant tous ses ancêtres
    * @param {string} targetPanelName - Le data-name du panel cible
    */
-  async navigateToPanel(targetPanelName) {
+  async navigateToPanel(targetPanelName, { skipAnimation = false } = {}) {
     // Construire le chemin complet vers le panel cible
     const ancestorPath = this.buildAncestorPath(targetPanelName);
     
@@ -472,7 +472,7 @@ export class MenuManager {
     }
 
     // Naviguer vers le panel cible en ouvrant tous les ancêtres
-    await this.openAncestorPath(ancestorPath);
+    await this.openAncestorPath(ancestorPath, { skipAnimation });
   }
 
   /**
@@ -504,7 +504,7 @@ export class MenuManager {
    * Ouvre séquentiellement tous les panels dans le chemin d'ancêtres
    * @param {string[]} ancestorPath - Array des panels à ouvrir dans l'ordre
    */
-  async openAncestorPath(ancestorPath) {
+  async openAncestorPath(ancestorPath, { skipAnimation = false } = {}) {
     // Fermer tous les panels actuellement ouverts qui ne sont pas dans le nouveau chemin
     await this.closeNonMatchingPanels(ancestorPath);
 
@@ -513,9 +513,9 @@ export class MenuManager {
       const panelName = ancestorPath[i];
       if (!this.navigationState.includes(panelName)) {
         this.navigationState.push(panelName);
-        this.showPanel(panelName);
+        this.showPanel(panelName, { skipAnimation });
   this.activeState.onOpen(panelName);
-        if (i < ancestorPath.length - 1) {
+        if (!skipAnimation && i < ancestorPath.length - 1) {
           await new Promise(res => setTimeout(res, CONFIG.ANIMATION.DURATION * 1000));
         }
       }
@@ -814,9 +814,13 @@ export class MenuManager {
    * Affiche un panel avec animation
    * @param {string} panelName - Le data-name du panel
    */
-  showPanel(panelName) {
+  showPanel(panelName, { skipAnimation = false } = {}) {
     const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
     if (!panel) return;
+    if (skipAnimation) {
+      gsap.set(panel, { xPercent: 0 });
+      return;
+    }
     gsap.to(panel, { duration: CONFIG.ANIMATION.DURATION, ease: CONFIG.ANIMATION.EASE.POWER2.OUT, xPercent: 0 });
   }
 
@@ -1189,30 +1193,30 @@ export class MenuManager {
   /**
    * Charge toutes les images avec data-fetch-img après le rendu Nest
    */
-  loadDeferredImages() {
-    const imageElements = document.querySelectorAll('[data-fetch-img]');
+  loadDeferredMedia() {
+    const mediaElements = document.querySelectorAll('[data-fetch-media]');
     
-    if (imageElements.length === 0) {
+    if (mediaElements.length === 0) {
       return;
     }
     
-    logger.log(`🖼️ Chargement de ${imageElements.length} images différées...`);
+    logger.log(`🖼️ Chargement de ${mediaElements.length} images différées...`);
     
-    imageElements.forEach((element) => {
-      const imageUrl = element.dataset.fetchImg;
+    mediaElements.forEach((element) => {
+      const mediaUrl = element.dataset.fetchMedia;
       
-      if (!imageUrl) {
+      if (!mediaUrl) {
         return;
       }
       
       // Appliquer directement l'URL comme src
-      element.src = imageUrl;
+      element.src = mediaUrl;
       
       // Supprimer l'attribut pour éviter de recharger
-      element.removeAttribute('data-fetch-img');
+      element.removeAttribute('data-fetch-media');
     });
     
-    logger.success(`✅ ${imageElements.length} images chargées`);
+    logger.success(`✅ ${mediaElements.length} médias chargés`);
   }
 
   // Méthodes RichTextManager supprimées (intégrées à WindowUtils)

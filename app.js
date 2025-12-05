@@ -7,12 +7,13 @@ import { OrientationManager } from './orientation-manager.js';
 import { SmoothScrollManager } from './smooth-scroll-manager.js';
 import { SmoothScrollManagerLite } from './smooth-scroll-manager-lite.js';
 import { SliderManager } from './slider-manager.js';
-import { SwiperManager } from './swiper-manager.js';
+// import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
 import { ModalManager } from './modal-manager.js';
 import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
 import { MobileLiteManager } from './mobile-lite-manager.js';
+import { ImageModal } from './modal-image.js';
 import './utils.js'; // Import des WindowUtils
 import logger from './logger.js';
 
@@ -52,10 +53,11 @@ export class VVPlaceApp {
     // Références aux différents gestionnaires
     this.smoothScrollManager = null;      // Gestion du scroll fluide
     this.sliderManager = null;           // Gestion du slider principal (desktop seulement)
-    this.swiperManager = null;           // Gestion des swipers (desktop seulement en mode lite)
+    // this.swiperManager = null;           // Gestion des swipers (desktop seulement en mode lite)
     this.menuManager = null;             // Gestion du menu
     this.menuFallback = null;            // Menu de fallback
     this.modalManager = null;            // Gestion des modales
+    this.imageModal = null;             // Modal d'affichage d'images (global)
   }
 
   /**
@@ -109,20 +111,20 @@ export class VVPlaceApp {
       this.smoothScrollManager = null;
     }
     
-    // 2. Initialise le gestionnaire de swipers (seulement en mode desktop)
-    if (!this.isMobileLite) {
-      try {
-        logger.debug(' Initialisation du SwiperManager...');
-        this.swiperManager = new SwiperManager();
-        this.swiperManager.init();
-        logger.success(' SwiperManager initialisé avec succès');
-      } catch (error) {
-        logger.error(' Erreur lors de l\'initialisation du SwiperManager:', error);
-        this.swiperManager = null;
-      }
-    } else {
-      logger.debug(' SwiperManager ignoré en mode mobile lite');
-    }
+    // // 2. Initialise le gestionnaire de swipers (seulement en mode desktop)
+    // if (!this.isMobileLite) {
+    //   try {
+    //     logger.debug(' Initialisation du SwiperManager...');
+    //     this.swiperManager = new SwiperManager();
+    //     this.swiperManager.init();
+    //     logger.success(' SwiperManager initialisé avec succès');
+    //   } catch (error) {
+    //     logger.error(' Erreur lors de l\'initialisation du SwiperManager:', error);
+    //     this.swiperManager = null;
+    //   }
+    // } else {
+    //   logger.debug(' SwiperManager ignoré en mode mobile lite');
+    // }
     
     // 3 & 4. Init Slider + Loader (seulement en mode desktop)
     if (!this.isMobileLite) {
@@ -177,6 +179,11 @@ export class VVPlaceApp {
         this.menuManager = new MenuManager(this.smoothScrollManager);
         this.menuManager.init().then(() => {
           logger.success(' MenuManager initialisé avec succès');
+          if (this.loaderManager?.setMenuNavigationHandler) {
+            this.loaderManager.setMenuNavigationHandler((panelName, options) => {
+              this.menuManager.navigateToPanel(panelName, options);
+            });
+          }
           
           // Initialiser l'écouteur du logo pour relancer l'animation loader
           if (this.loaderManager) {
@@ -201,7 +208,8 @@ export class VVPlaceApp {
     if (!this.isMobileLite && this.checkModalElements()) {
       try {
         logger.modal(' Initialisation du ModalManager...');
-        this.modalManager = new ModalManager(this.swiperManager);
+        // this.modalManager = new ModalManager(this.swiperManager);
+        this.modalManager = new ModalManager();
         this.modalManager.init();
         logger.success(' ModalManager initialisé avec succès');
       } catch (error) {
@@ -290,6 +298,18 @@ export class VVPlaceApp {
       logger.error(' Erreur lors de l\'initialisation du MobileLiteManager:', error);
     }
     
+    // Initialise la modal d'image globale (toutes les images sauf celles avec `data-image-no-modal`)
+    try {
+      this.imageModal = new ImageModal({
+        excludeAttribute: 'data-image-no-modal', // attribut pour exclure certaines images
+        autoplayVideos: false                   // ne pas autoplay les vidéos
+      });
+      this.imageModal.init();
+      logger.success(' ImageModal initialisé');
+    } catch (error) {
+      logger.error(' Erreur ImageModal:', error);
+      this.imageModal = null;
+    }
     logger.success(' VVPlaceApp - Initialisation terminée');
   }
 
@@ -307,6 +327,10 @@ export class VVPlaceApp {
       this.modalManager.destroy();
     }
     
+    if (this.imageModal) {
+      this.imageModal.destroy();
+    }
+    
     if (this.menuManager) {
       // Le MenuManager n'a pas de méthode destroy pour l'instant
       this.menuManager = null;
@@ -321,9 +345,9 @@ export class VVPlaceApp {
       this.sliderManager.destroy();
     }
     
-    if (this.swiperManager) {
-      this.swiperManager.destroyAll();
-    }
+    // if (this.swiperManager) {
+    //   this.swiperManager.destroyAll();
+    // }
     
     if (this.smoothScrollManager) {
       this.smoothScrollManager.destroy();

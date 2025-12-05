@@ -102,7 +102,7 @@ function isTablet() {
  * @returns {boolean}
  */
 function isDesktop() {
-    return window.innerWidth >= BREAKPOINTS.desktop;
+    return window.innerWidth >= BREAKPOINTS.tablet;
 }
 
 /**
