@@ -22,7 +22,7 @@ export class ImageModal {
     this._indicatorSource = null;
     this._modalIndicatorTrack = null;
     this._modalIndicatorBall = null;
-    this._navLogoSelector = '.nav_logo';
+    this._navLogoSelector = '.nav_logo' || '.nav_btn_logo_link';
   }
 
   init() {
