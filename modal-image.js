@@ -16,6 +16,13 @@ export class ImageModal {
     this._swiperInstance = null;
     this._slideMediaRefs = [];
     this._recentlyClosed = false;
+    this._indicatorTemplateSelector = '.indicators_wrap.is-clonable';
+    this._modalIndicatorClass = 'vv-image-modal-indicators';
+    this._modalIndicator = null;
+    this._indicatorSource = null;
+    this._modalIndicatorTrack = null;
+    this._modalIndicatorBall = null;
+    this._navLogoSelector = '.nav_logo';
   }
 
   init() {
@@ -247,6 +254,7 @@ export class ImageModal {
 
     const clickedMedia = mediaEl;
     this._removeOverlay();
+    this._releaseIndicatorReferences();
 
     const contextFolder = this._getMediaContextElement(clickedMedia);
     let mediaCollection = this._collectFolderMedia(contextFolder);
@@ -266,7 +274,14 @@ export class ImageModal {
     const initialIndex = this._findInitialMediaIndex(mediaCollection, clickedMedia);
 
     const { overlay, center } = this._createOverlaySkeleton();
+    const headerStructure = this._createHeaderBar();
     const closeBtn = this._createCloseButton();
+    const logoClone = this._cloneNavLogo();
+    if (logoClone) {
+      headerStructure.logoSlot.appendChild(logoClone);
+    }
+    headerStructure.closeSlot.appendChild(closeBtn);
+    center.appendChild(headerStructure.header);
     let swiperStructure = null;
 
     if (this._canUseSwiper() && mediaCollection.length) {
@@ -276,6 +291,9 @@ export class ImageModal {
     if (swiperStructure) {
       center.appendChild(swiperStructure.container);
       this._slideMediaRefs = swiperStructure.mediaRefs;
+      if (mediaCollection.length > 1) {
+        this._attachModalIndicators(headerStructure.indicatorSlot, contextFolder, clickedMedia);
+      }
     } else {
       const singleWrapper = document.createElement('div');
       singleWrapper.className = 'vv-image-modal-single';
@@ -284,8 +302,6 @@ export class ImageModal {
       center.appendChild(singleWrapper);
       this._slideMediaRefs = [];
     }
-
-    center.appendChild(closeBtn);
     overlay.appendChild(center);
     document.body.appendChild(overlay);
 
@@ -320,6 +336,7 @@ export class ImageModal {
     const node = this._overlay;
     this._unblockScroll();
     this._destroySwiper();
+    this._releaseIndicatorReferences();
     this._armRecentlyClosedFlag();
     setTimeout(() => {
       if (node && node.parentNode) node.parentNode.removeChild(node);
@@ -330,6 +347,7 @@ export class ImageModal {
   _removeOverlay() {
     if (this._overlay && this._overlay.parentNode) {
       this._destroySwiper();
+      this._releaseIndicatorReferences();
       this._overlay.parentNode.removeChild(this._overlay);
       this._overlay = null;
       this._unblockScroll();
@@ -371,9 +389,33 @@ export class ImageModal {
     return closeBtn;
   }
 
+  _createHeaderBar() {
+    const header = document.createElement('div');
+    header.className = 'vv-image-modal-header';
+
+    const logoSlot = document.createElement('div');
+    logoSlot.className = 'vv-image-modal-header-slot is-logo';
+
+    const indicatorSlot = document.createElement('div');
+    indicatorSlot.className = 'vv-image-modal-header-slot is-indicator';
+
+    const closeSlot = document.createElement('div');
+    closeSlot.className = 'vv-image-modal-header-slot is-close';
+
+    header.appendChild(logoSlot);
+    header.appendChild(indicatorSlot);
+    header.appendChild(closeSlot);
+
+    return { header, logoSlot, indicatorSlot, closeSlot };
+  }
+
   _getMediaContextElement(mediaEl) {
     const folderFromNav = this._getLastOpenedFolderElement();
     if (folderFromNav) return folderFromNav;
+    if (mediaEl && typeof mediaEl.closest === 'function') {
+      const articleWrap = mediaEl.closest('.article_wrap');
+      if (articleWrap) return articleWrap;
+    }
     if (mediaEl && typeof mediaEl.closest === 'function') {
       const fallback = mediaEl.closest('.menu_panel_item');
       if (fallback) return fallback;
@@ -534,6 +576,263 @@ export class ImageModal {
     return { container: sliderEl, mediaRefs };
   }
 
+  _attachModalIndicators(container, contextFolder, mediaEl) {
+    if (!container) return null;
+    const source = this._findIndicatorTemplate(contextFolder, mediaEl);
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    if (clone.classList && clone.classList.contains('is-clonable')) {
+      clone.classList.remove('is-clonable');
+    }
+    if (clone.classList) {
+      clone.classList.add(this._modalIndicatorClass);
+    }
+    try { clone.dataset.modalIndicator = 'true'; } catch (e) {}
+    container.appendChild(clone);
+    this._modalIndicator = clone;
+    this._indicatorSource = source;
+    this._modalIndicatorTrack = clone.querySelector('.indicators_scroller_line_wrap');
+    this._modalIndicatorBall = clone.querySelector('.indicators_scroller_line_ball');
+    this._setModalIndicatorBall(0);
+    const indicatorLabel = this._resolveIndicatorLabel(contextFolder, mediaEl);
+    this._updateIndicatorLabel(indicatorLabel);
+    return clone;
+  }
+
+  _findIndicatorTemplate(contextFolder, mediaEl) {
+    const selector = this._indicatorTemplateSelector;
+    if (!selector || typeof document === 'undefined') {
+      return null;
+    }
+    const sanitizedSelector = `${selector}:not(.${this._modalIndicatorClass})`;
+
+    const trySelect = (root, useClosest = false) => {
+      if (!root) return null;
+      try {
+        if (useClosest && typeof root.closest === 'function') {
+          const closest = root.closest(sanitizedSelector);
+          if (closest) return closest;
+        }
+        if (typeof root.matches === 'function' && root.matches(sanitizedSelector)) {
+          return root;
+        }
+        if (typeof root.querySelector === 'function') {
+          return root.querySelector(sanitizedSelector);
+        }
+      } catch (e) {}
+      return null;
+    };
+
+    const direct = trySelect(mediaEl, true);
+    if (direct) return direct;
+
+    let ancestor = mediaEl?.parentElement || null;
+    while (ancestor && ancestor !== document.body) {
+      const candidate = trySelect(ancestor, false);
+      if (candidate) return candidate;
+      ancestor = ancestor.parentElement;
+    }
+
+    if (contextFolder) {
+      const folderCandidate = trySelect(contextFolder, false);
+      if (folderCandidate) return folderCandidate;
+    }
+
+    try {
+      return document.querySelector(sanitizedSelector);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _cloneNavLogo() {
+    const selector = this._navLogoSelector;
+    if (!selector || typeof document === 'undefined') return null;
+    let source = null;
+    try {
+      source = document.querySelector(`${selector}:not(.vv-image-modal-logo)`);
+    } catch (e) {
+      source = null;
+    }
+    if (!source) {
+      try {
+        source = document.querySelector(selector);
+      } catch (e) {
+        source = null;
+      }
+    }
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    clone.classList.add('vv-image-modal-logo');
+    return clone;
+  }
+
+  _updateIndicatorLabel(label) {
+    if (!this._modalIndicator) return;
+    const textNode = this._modalIndicator.querySelector('.indicators_item_text');
+    if (!textNode) return;
+    const normalized = this._normalizeLabelText(label);
+    if (!normalized) return;
+    textNode.textContent = normalized;
+  }
+
+  _resolveIndicatorLabel(contextFolder, mediaEl) {
+    const articleTitle = this._extractArticleTitle(mediaEl);
+    if (articleTitle) return articleTitle;
+    const folderTitle = this._getFolderTitle(contextFolder);
+    if (folderTitle) return folderTitle;
+    return '';
+  }
+
+  _getFolderTitle(contextFolder) {
+    const folder = contextFolder || this._getLastOpenedFolderElement();
+    if (!folder) return '';
+    try {
+      const titleEl = folder.querySelector('.menu_panel_item_title:not(.w-condition-invisible)');
+      const rawText = titleEl ? (titleEl.textContent || titleEl.innerText || '') : (folder.dataset?.name || '');
+      return this._normalizeLabelText(rawText);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  _extractArticleTitle(mediaEl) {
+    const attributeSelectors = [
+      '[data-article-title]',
+      '[data-article-name]',
+      '[data-article-label]',
+      '[data-current-article-title]'
+    ];
+
+    for (const selector of attributeSelectors) {
+      const node = mediaEl?.closest ? mediaEl.closest(selector) : null;
+      const value = this._readArticleAttribute(node);
+      if (value) return value;
+    }
+
+    const articleRoot = this._findArticleContext(mediaEl);
+    if (articleRoot) {
+      const attrValue = this._readArticleAttribute(articleRoot);
+      if (attrValue) return attrValue;
+      const titleNode = this._queryArticleTitleNode(articleRoot);
+      if (titleNode) {
+        return this._normalizeLabelText(titleNode.textContent || titleNode.innerText || '');
+      }
+    }
+
+    for (const selector of attributeSelectors) {
+      const node = document.querySelector(selector);
+      const value = this._readArticleAttribute(node);
+      if (value) return value;
+    }
+
+    return '';
+  }
+
+  _readArticleAttribute(node) {
+    if (!node) return '';
+    const datasetKeys = ['articleTitle', 'articleName', 'articleLabel', 'currentArticleTitle'];
+    for (const key of datasetKeys) {
+      const val = node.dataset?.[key];
+      if (val && this._normalizeLabelText(val)) {
+        return this._normalizeLabelText(val);
+      }
+    }
+    const attributeKeys = ['data-article-title', 'data-article-name', 'data-article-label', 'data-current-article-title'];
+    for (const attr of attributeKeys) {
+      const attrVal = node.getAttribute ? node.getAttribute(attr) : null;
+      if (attrVal && this._normalizeLabelText(attrVal)) {
+        return this._normalizeLabelText(attrVal);
+      }
+    }
+    if (this._nodeLooksLikeArticle(node)) {
+      const fallbackAttr = node.getAttribute ? node.getAttribute('data-title') : null;
+      if (fallbackAttr && this._normalizeLabelText(fallbackAttr)) {
+        return this._normalizeLabelText(fallbackAttr);
+      }
+      const datasetTitle = node.dataset?.title;
+      if (datasetTitle && this._normalizeLabelText(datasetTitle)) {
+        return this._normalizeLabelText(datasetTitle);
+      }
+    }
+    return '';
+  }
+
+  _findArticleContext(mediaEl) {
+    const selectors = [
+      '[data-article-root]',
+      '[data-article-body]',
+      '[data-article-wrapper]',
+      '.article_template',
+      '.article_detail',
+      '.article-details',
+      '.article_content',
+      '.article_wrap',
+      '.article_item',
+      '.articles_item',
+      '.article',
+      'article'
+    ];
+    if (mediaEl && typeof mediaEl.closest === 'function') {
+      for (const selector of selectors) {
+        const candidate = mediaEl.closest(selector);
+        if (candidate) return candidate;
+      }
+    }
+    for (const selector of selectors) {
+      try {
+        const candidate = document.querySelector(selector);
+        if (candidate) return candidate;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  _queryArticleTitleNode(root) {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    const selectors = [
+      '[data-article-heading]',
+      '.article_heading',
+      '.article_header_title',
+      '.article_title',
+      '.menu-article_title',
+      '.article-title',
+      '.article_name',
+      '.article_label',
+      '.post_title',
+      '.post-title',
+      'h1',
+      'h2'
+    ];
+    for (const selector of selectors) {
+      let node = null;
+      try {
+        node = root.querySelector(selector);
+      } catch (e) {
+        node = null;
+      }
+      if (!node) continue;
+      const text = this._normalizeLabelText(node.textContent || node.innerText || '');
+      if (text) return node;
+    }
+    return null;
+  }
+
+  _nodeLooksLikeArticle(node) {
+    if (!node) return false;
+    if (node.tagName && node.tagName.toLowerCase() === 'article') return true;
+    const className = typeof node.className === 'string' ? node.className.toLowerCase() : '';
+    if (className && (className.includes('article') || className.includes('post'))) {
+      return true;
+    }
+    return false;
+  }
+
+  _normalizeLabelText(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
   _syncVideoAttributes(cloned, source) {
     if (!cloned || !source) return;
     const booleanAttributes = [
@@ -629,6 +928,7 @@ export class ImageModal {
 
   _handleSlideChange(activeIdx = 0) {
     this._pauseAllVideos(activeIdx);
+    this._updateModalIndicatorProgress(activeIdx);
     const activeMedia = this._slideMediaRefs[activeIdx];
     if (!activeMedia || activeMedia.tagName !== 'VIDEO') return;
 
@@ -660,6 +960,33 @@ export class ImageModal {
     this._slideMediaRefs = [];
   }
 
+  _releaseIndicatorReferences() {
+    this._modalIndicator = null;
+    this._indicatorSource = null;
+    this._modalIndicatorTrack = null;
+    this._modalIndicatorBall = null;
+  }
+
+  _updateModalIndicatorProgress(activeIdx = 0) {
+    if (!this._modalIndicatorBall) return;
+    const totalSlides = Array.isArray(this._slideMediaRefs) ? this._slideMediaRefs.length : 0;
+    if (totalSlides <= 1) return;
+    const clampedIdx = Math.max(0, Math.min(activeIdx, totalSlides - 1));
+    const percent = totalSlides === 1 ? 0 : clampedIdx / (totalSlides - 1);
+    this._setModalIndicatorBall(percent);
+  }
+
+  _setModalIndicatorBall(percent = 0) {
+    if (!this._modalIndicatorBall) return;
+    const safePercent = Math.max(0, Math.min(1, percent));
+    const value = `${safePercent * 100}%`;
+    if (typeof window !== 'undefined' && window.gsap) {
+      window.gsap.to(this._modalIndicatorBall, { left: value, duration: 0.35, ease: 'power2.out' });
+    } else {
+      this._modalIndicatorBall.style.left = value;
+    }
+  }
+
   _canUseSwiper() {
     return typeof window !== 'undefined' && typeof window.Swiper !== 'undefined';
   }
@@ -684,14 +1011,18 @@ export class ImageModal {
   .vv-image-modal-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.8);backdrop-filter:blur(8px);opacity:0;transition:opacity .18s ease;z-index:12000}
   .vv-image-modal-open{opacity:1}
   .vv-image-modal-center{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box}
+  .vv-image-modal-header{position:absolute;top:1.1rem;left:1.5rem;right:1.5rem;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:center;gap:0.75rem;pointer-events:none;z-index:2}
+  .vv-image-modal-header-slot{min-width:0;display:flex;align-items:center;pointer-events:auto;justify-content:center}
+  .vv-image-modal-header-slot.is-indicator{grid-column:2 / span 2;width:100%}
+  .vv-image-modal-header-slot.is-close{justify-content:flex-end}
+  .vv-image-modal-header-slot.is-logo{justify-self:left}
+  .vv-image-modal-logo{display:inline-flex;align-items:center;justify-content:center;max-width:200px}
   .vv-image-modal-swiper{pointer-events:auto;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box;touch-action:none}
   .vv-image-modal-slide{display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden}
   .vv-image-modal-single{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box}
   .vv-image-modal-media,.vv-image-modal-img{pointer-events:auto;width:auto;height:auto;max-width:100vw;max-height:100vh;display:block;object-fit:contain;box-shadow:0 20px 50px rgba(0,0,0,0.2);background:#fff;transform:scale(.98);opacity:0;transition:transform .2s ease,opacity .2s ease}
   .vv-image-modal-open .vv-image-modal-media,.vv-image-modal-open .vv-image-modal-img{transform:scale(1);opacity:1}
-  .vv-image-modal-close{pointer-events:auto;position:absolute;z-index:2;top:24px;right:24px;background:rgba(0,0,0,0.85);color:#fff;border:0;border-radius:2px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .2s ease}
-  .vv-image-modal-close:hover{background:rgba(0,0,0,1)}
-  @media (max-width:600px){.vv-image-modal-close{top:12px;right:12px;width:32px;height:32px}}
+  .vv-image-modal-close{pointer-events:auto;position:static;z-index:1;background:rgba(0,0,0,1);color:#fff;border:0;border-radius:2px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .2s ease}
   `;
     const style = document.createElement('style');
     style.id = 'vv-image-modal-styles';
