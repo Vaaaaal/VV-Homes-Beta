@@ -662,7 +662,20 @@ export class ImageModal {
       }
     }
     if (!source) return null;
-    const clone = source.cloneNode(true);
+    let clone = source.cloneNode(true);
+
+    if (clone.tagName === 'A') {
+      const div = document.createElement('div');
+      div.className = clone.className;
+      div.innerHTML = clone.innerHTML;
+      Array.from(clone.attributes).forEach((attr) => {
+        if (attr.name === 'href' || attr.name === 'target' || attr.name === 'rel') return;
+        if (attr.name === 'class') return;
+        div.setAttribute(attr.name, attr.value);
+      });
+      clone = div;
+    }
+
     clone.classList.add('vv-image-modal-logo');
     return clone;
   }
