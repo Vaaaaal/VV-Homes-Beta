@@ -30,7 +30,6 @@ export class ImageModal {
     // Attacher délégation d'événement au document
     document.addEventListener('click', this._boundClick, true);
     document.addEventListener('keydown', this._boundKeydown, true);
-    this._injectStyles();
     // Transfer possible exclusion flags from <figcaption> to contained images
     // Wait for Finsweet CMS to finish loading if it's present
     this._waitForFinsweet().then(() => {
@@ -1032,32 +1031,6 @@ export class ImageModal {
     } catch (e) {
       return false;
     }
-  }
-
-
-  _injectStyles() {
-    if (document.getElementById('vv-image-modal-styles')) return;
-    const css = `
-  .vv-image-modal-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.8);backdrop-filter:blur(8px);opacity:0;transition:opacity .18s ease;z-index:12000}
-  .vv-image-modal-open{opacity:1}
-  .vv-image-modal-center{position:relative;pointer-events:auto;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box}
-  .vv-image-modal-header{position:absolute;top:1.1rem;left:1.5rem;right:1.5rem;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:center;gap:0.75rem;pointer-events:none;z-index:2}
-  .vv-image-modal-header-slot{min-width:0;display:flex;align-items:center;pointer-events:auto;justify-content:center}
-  .vv-image-modal-header-slot.is-indicator{grid-column:2 / span 2;width:100%}
-  .vv-image-modal-header-slot.is-close{justify-content:flex-end}
-  .vv-image-modal-header-slot.is-logo{justify-content:flex-start}
-  .vv-image-modal-logo{display:inline-flex;align-items:center;justify-content:flex-start;max-width:200px}
-  .vv-image-modal-swiper{pointer-events:auto;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box;touch-action:none}
-  .vv-image-modal-slide{display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden}
-  .vv-image-modal-single{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box}
-  .vv-image-modal-media,.vv-image-modal-img{pointer-events:auto;width:auto;height:auto;max-width:100vw;max-height:100vh;display:block;object-fit:contain;box-shadow:0 20px 50px rgba(0,0,0,0.2);background:#fff;transform:scale(.98);opacity:0;transition:transform .2s ease,opacity .2s ease}
-  .vv-image-modal-open .vv-image-modal-media,.vv-image-modal-open .vv-image-modal-img{transform:scale(1);opacity:1}
-  .vv-image-modal-close{pointer-events:auto;position:static;z-index:1;background:rgba(0,0,0,1);color:#fff;border:0;border-radius:2px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .2s ease}
-  `;
-    const style = document.createElement('style');
-    style.id = 'vv-image-modal-styles';
-    style.appendChild(document.createTextNode(css));
-    document.head.appendChild(style);
   }
 }
 
