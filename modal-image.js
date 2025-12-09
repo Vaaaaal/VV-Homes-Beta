@@ -23,6 +23,7 @@ export class ImageModal {
     this._modalIndicatorTrack = null;
     this._modalIndicatorBall = null;
     this._navLogoSelector = '.nav_logo, .nav_btn_logo_link';
+    this._closeButtonSelector = '.menu_exit.is-all';
   }
 
   init() {
@@ -275,7 +276,7 @@ export class ImageModal {
 
     const { overlay, center } = this._createOverlaySkeleton();
     const headerStructure = this._createHeaderBar();
-    const closeBtn = this._createCloseButton();
+    const closeBtn = this._cloneCloseButton();
     const logoClone = this._cloneNavLogo();
     if (logoClone) {
       headerStructure.logoSlot.appendChild(logoClone);
@@ -375,7 +376,29 @@ export class ImageModal {
     return { overlay, center };
   }
 
-  _createCloseButton() {
+  _cloneCloseButton() {
+    const selector = this._closeButtonSelector;
+    if (!selector || typeof document === 'undefined') return this._createFallbackCloseButton();
+    let source = null;
+    try {
+      source = document.querySelector(selector);
+    } catch (e) {
+      source = null;
+    }
+    if (!source) {
+      return this._createFallbackCloseButton();
+    }
+    const clone = source.cloneNode(true);
+    clone.classList.add('vv-image-modal-close');
+    clone.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.close();
+    });
+    return clone;
+  }
+
+  _createFallbackCloseButton() {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'vv-image-modal-close';
     closeBtn.setAttribute('aria-label', 'Fermer');
@@ -415,8 +438,6 @@ export class ImageModal {
     if (mediaEl && typeof mediaEl.closest === 'function') {
       const articleWrap = mediaEl.closest('.article_wrap');
       if (articleWrap) return articleWrap;
-    }
-    if (mediaEl && typeof mediaEl.closest === 'function') {
       const fallback = mediaEl.closest('.menu_panel_item');
       if (fallback) return fallback;
     }
@@ -1022,8 +1043,8 @@ export class ImageModal {
   .vv-image-modal-header-slot{min-width:0;display:flex;align-items:center;pointer-events:auto;justify-content:center}
   .vv-image-modal-header-slot.is-indicator{grid-column:2 / span 2;width:100%}
   .vv-image-modal-header-slot.is-close{justify-content:flex-end}
-  .vv-image-modal-header-slot.is-logo{justify-self:left}
-  .vv-image-modal-logo{display:inline-flex;align-items:center;justify-content:center;max-width:200px}
+  .vv-image-modal-header-slot.is-logo{justify-content:flex-start}
+  .vv-image-modal-logo{display:inline-flex;align-items:center;justify-content:flex-start;max-width:200px}
   .vv-image-modal-swiper{pointer-events:auto;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box;touch-action:none}
   .vv-image-modal-slide{display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden}
   .vv-image-modal-single{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;max-width:100vw;max-height:100vh;padding:0;box-sizing:border-box}
