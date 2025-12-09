@@ -22,7 +22,7 @@ export class ImageModal {
     this._indicatorSource = null;
     this._modalIndicatorTrack = null;
     this._modalIndicatorBall = null;
-    this._navLogoSelector = '.nav_logo' || '.nav_btn_logo_link';
+    this._navLogoSelector = '.nav_logo, .nav_btn_logo_link';
   }
 
   init() {
@@ -650,16 +650,10 @@ export class ImageModal {
     if (!selector || typeof document === 'undefined') return null;
     let source = null;
     try {
-      source = document.querySelector(`${selector}:not(.vv-image-modal-logo)`);
+      const nodes = Array.from(document.querySelectorAll(selector));
+      source = nodes.find((node) => !node.classList.contains('vv-image-modal-logo')) || null;
     } catch (e) {
       source = null;
-    }
-    if (!source) {
-      try {
-        source = document.querySelector(selector);
-      } catch (e) {
-        source = null;
-      }
     }
     if (!source) return null;
     let clone = source.cloneNode(true);
