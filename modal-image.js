@@ -390,6 +390,8 @@ export class ImageModal {
     }
     const clone = source.cloneNode(true);
     clone.classList.add('vv-image-modal-close');
+    clone.classList.add('menu_exit');
+    clone.classList.add('is-all');
     clone.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
