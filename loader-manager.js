@@ -11,6 +11,7 @@ const SELECTORS = {
   LOADER_WRAP: '.loader_wrap',
   LOADER_ONE: '.loader_content_wrap .loader_one',
   LOADER_IMAGES: '.loader_content_wrap .loader_images',
+  LOADER_FLASH_WRAP: '.loader_flash_wrap',
   NAVBAR: '.nav_wrap',
   MAIN_LIST: '.main-wrapper .slider-panel_wrap'
 };
@@ -43,11 +44,13 @@ export class LoaderManager {
     this.loaderElement = document.querySelector(SELECTORS.LOADER_WRAP);
     this.loaderContentOne = this.loaderElement?.querySelector(SELECTORS.LOADER_ONE);
     this.loaderContentThree = this.loaderElement?.querySelector(SELECTORS.LOADER_IMAGES);
+    this.loaderFlashWrap = document.querySelector(SELECTORS.LOADER_FLASH_WRAP);
     this.sliderItems = [];
     this.navbar = document.querySelector(SELECTORS.NAVBAR);
     this.mainList = document.querySelector(SELECTORS.MAIN_LIST);
     this.menuNavigationHandler = null;
     this.pendingMenuNavigation = null;
+    this.eventsEnabled = false;
 
     // État du loader
     this.isLoading = false;
@@ -154,8 +157,8 @@ export class LoaderManager {
 
       logger.success('✅ LoaderManager initialisé avec succès');
 
-      // Ajout de l'évènement de chargement
-      this.addLoadEvent();
+      // Gestion du loader_flash_wrap (fadeOut après 1s)
+      this.initFlashLoader();
       
       return true;
     } catch (error) {
@@ -223,6 +226,69 @@ export class LoaderManager {
   }
 
   /**
+   * Initialise et gère le loader_flash_wrap
+   * - Désactive tous les événements
+   * - Déclenche un fadeOut après 1 seconde
+   * - Réactive les événements après le fadeOut
+   */
+  initFlashLoader() {
+    if (!this.loaderFlashWrap) {
+      logger.warn('⚠️ loader_flash_wrap non trouvé, ajout des événements directement');
+      this.addLoadEvent();
+      return;
+    }
+
+    logger.debug('✨ Initialisation du loader_flash_wrap');
+    
+    // Désactiver tous les événements de la page
+    this.disableAllEvents();
+    
+    // Attendre 1 seconde puis déclencher le fadeOut de 0.8s
+    setTimeout(() => {
+      gsap.to(this.loaderFlashWrap, {
+        opacity: 0,
+        duration: 0.8,
+        ease: 'power2.out',
+        onComplete: () => {
+          logger.debug('✅ Loader flash disparition terminée');
+          this.loaderFlashWrap.style.display = 'none';
+          this.loaderFlashWrap.style.pointerEvents = 'none';
+          
+          // Réactiver tous les événements
+          this.enableAllEvents();
+          
+          // Ajouter les événements de chargement
+          this.addLoadEvent();
+        }
+      });
+    }, 200);
+  }
+
+  /**
+   * Désactive tous les événements de la page
+   */
+  disableAllEvents() {
+    logger.debug('🔒 Désactivation de tous les événements');
+    this.eventsEnabled = false;
+    
+    // Désactiver les événements pointer sur le body
+    document.body.style.pointerEvents = 'none';
+    document.body.style.userSelect = 'none';
+  }
+
+  /**
+   * Réactive tous les événements de la page
+   */
+  enableAllEvents() {
+    logger.debug('🔓 Réactivation de tous les événements');
+    this.eventsEnabled = true;
+    
+    // Réactiver les événements pointer sur le body
+    document.body.style.pointerEvents = 'auto';
+    document.body.style.userSelect = 'auto';
+  }
+
+  /**
   * Ajoute l'évènement qui déclenche l'animation de chargement
   */
 	addLoadEvent() {
@@ -259,18 +325,18 @@ export class LoaderManager {
 		// }
 
     this._onLoaderClick = () => {
-      if (this.isLoading || this.deferAutoStart) return;
+      if (this.isLoading || this.deferAutoStart || !this.eventsEnabled) return;
 			logger.debug('🔄 LoaderManager - déclenchement via click');
 
 			this.startLoading();
 		};
     this._onLoaderWheel = () => {
-      if (this.isLoading || this.deferAutoStart) return;
+      if (this.isLoading || this.deferAutoStart || !this.eventsEnabled) return;
 			logger.debug('🔄 LoaderManager - déclenchement via wheel');
 			this.startLoading();
 		};
     this._onLoaderTouchStart = () => {
-      if (this.isLoading || this.deferAutoStart) return;
+      if (this.isLoading || this.deferAutoStart || !this.eventsEnabled) return;
 			logger.debug('🔄 LoaderManager - déclenchement via touchstart');
 			this.startLoading();
 		};

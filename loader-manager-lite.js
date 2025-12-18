@@ -12,11 +12,13 @@ export class LoaderManagerLite {
   constructor() {
     // Références aux éléments DOM essentiels
     this.loaderElement = document.querySelector('.loader_wrap');
+    this.loaderFlashWrap = document.querySelector('.loader_flash_wrap');
     this.navbar = document.querySelector('.nav_wrap');
     
     // État du loader
     this.isLoading = false;
     this.isInitialized = false;
+    this.eventsEnabled = false;
 
     // Navigation menu différée (alignée sur LoaderManager complet)
     this.menuNavigationHandler = null;
@@ -48,8 +50,8 @@ export class LoaderManagerLite {
 
       logger.success('✅ LoaderManagerLite initialisé avec succès');
 
-      // Configurer l'écoute du touch/clic sur le loader
-      this.initLoaderTouchListener();
+      // Gestion du loader_flash_wrap (fadeOut après 1s)
+      this.initFlashLoader();
 
       // Rejouer la navigation menu différée si nécessaire
       this.maybeNavigateMenuFromLoader();
@@ -112,6 +114,69 @@ export class LoaderManagerLite {
         this.startLoader();
       }
     }, delay);
+  }
+
+  /**
+   * Initialise et gère le loader_flash_wrap
+   * - Désactive tous les événements
+   * - Déclenche un fadeOut après 1 seconde
+   * - Réactive les événements après le fadeOut
+   */
+  initFlashLoader() {
+    if (!this.loaderFlashWrap) {
+      logger.warn('⚠️ loader_flash_wrap non trouvé, configuration directe du loader');
+      this.initLoaderTouchListener();
+      return;
+    }
+
+    logger.debug('✨ Initialisation du loader_flash_wrap (mobile lite)');
+    
+    // Désactiver tous les événements de la page
+    this.disableAllEvents();
+    
+    // Attendre 1 seconde puis déclencher le fadeOut de 0.8s
+    setTimeout(() => {
+      gsap.to(this.loaderFlashWrap, {
+        opacity: 0,
+        duration: 0.8,
+        ease: 'power2.out',
+        onComplete: () => {
+          logger.debug('✅ Loader flash disparition terminée (mobile lite)');
+          this.loaderFlashWrap.style.display = 'none';
+          this.loaderFlashWrap.style.pointerEvents = 'none';
+          
+          // Réactiver tous les événements
+          this.enableAllEvents();
+          
+          // Configurer l'écoute du touch/clic sur le loader
+          this.initLoaderTouchListener();
+        }
+      });
+    }, 1000);
+  }
+
+  /**
+   * Désactive tous les événements de la page
+   */
+  disableAllEvents() {
+    logger.debug('🔒 Désactivation de tous les événements (mobile lite)');
+    this.eventsEnabled = false;
+    
+    // Désactiver les événements pointer sur le body
+    document.body.style.pointerEvents = 'none';
+    document.body.style.userSelect = 'none';
+  }
+
+  /**
+   * Réactive tous les événements de la page
+   */
+  enableAllEvents() {
+    logger.debug('🔓 Réactivation de tous les événements (mobile lite)');
+    this.eventsEnabled = true;
+    
+    // Réactiver les événements pointer sur le body
+    document.body.style.pointerEvents = 'auto';
+    document.body.style.userSelect = 'auto';
   }
 
   /**
@@ -182,7 +247,7 @@ export class LoaderManagerLite {
 
     const handleLoaderTouch = (e) => {
       e.preventDefault();
-      if (this.isLoading || this.deferAutoStart) return;
+      if (this.isLoading || this.deferAutoStart || !this.eventsEnabled) return;
       logger.info(' Touch/clic sur loader détecté - lancement du fade out');
       this.startLoader();
     };
