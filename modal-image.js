@@ -10,6 +10,8 @@ export class ImageModal {
     // If true, videos opened in the modal will autoplay (muted) when possible
     this.autoplayVideos = !!options.autoplayVideos;
     this.disableOnMobile = options.disableOnMobile !== false;
+    // Data attribute to check on images to enable slider background (e.g., data-image-modal-background)
+    this.backgroundAttribute = options.backgroundAttribute || 'data-image-modal-background';
     this._boundClick = this._onDocumentClick.bind(this);
     this._boundKeydown = this._onKeyDown.bind(this);
     this._overlay = null;
@@ -256,6 +258,10 @@ export class ImageModal {
     this._removeOverlay();
     this._releaseIndicatorReferences();
 
+    // Récupérer l'image de fond du slider si l'attribut est présent sur l'image
+    const hasBackgroundAttr = clickedMedia.hasAttribute && clickedMedia.hasAttribute(this.backgroundAttribute);
+    const sliderBackground = hasBackgroundAttr ? this._getSliderBackgroundImage(clickedMedia) : null;
+
     const contextFolder = this._getMediaContextElement(clickedMedia);
     let mediaCollection = this._collectFolderMedia(contextFolder);
 
@@ -273,7 +279,7 @@ export class ImageModal {
 
     const initialIndex = this._findInitialMediaIndex(mediaCollection, clickedMedia);
 
-    const { overlay, center } = this._createOverlaySkeleton();
+    const { overlay, center } = this._createOverlaySkeleton(sliderBackground);
     const headerStructure = this._createHeaderBar();
     const closeBtn = this._cloneCloseButton();
     const logoClone = this._cloneNavLogo();
@@ -363,14 +369,36 @@ export class ImageModal {
     }, 250);
   }
 
-  _createOverlaySkeleton() {
+  _createOverlaySkeleton(backgroundImage = null) {
     const overlay = document.createElement('div');
     overlay.className = 'vv-image-modal-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
 
+    // Ajouter l'image de fond si fournie
+    if (backgroundImage) {
+      const bgLayer = document.createElement('div');
+      bgLayer.className = 'vv-image-modal-background';
+      bgLayer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: ${backgroundImage};
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        z-index: 0;
+        pointer-events: none;
+      `;
+      overlay.appendChild(bgLayer);
+    }
+
     const center = document.createElement('div');
     center.className = 'vv-image-modal-center';
+    center.style.position = 'relative';
+    center.style.zIndex = '1';
 
     return { overlay, center };
   }
@@ -1031,6 +1059,69 @@ export class ImageModal {
     } catch (e) {
       return false;
     }
+  }
+
+  /**
+   * Récupère l'image de fond du slider panel si l'élément cliqué est dans un slider
+   * @param {HTMLElement} mediaEl - L'élément média cliqué
+   * @returns {string|null} - L'URL de l'image de fond au format CSS url(...) ou null
+   */
+  _getSliderBackgroundImage(mediaEl) {
+    if (!mediaEl) return null;
+    
+    try {
+      // Chercher le slider-panel_item parent
+      const sliderPanel = mediaEl.closest('.slider-panel_item');
+      if (!sliderPanel) return null;
+      
+      // PRIORITÉ 1: Chercher .slider-panel_background qui est un élément <img>
+      const bgElement = sliderPanel.querySelector('.slider-panel_background');
+      if (bgElement && bgElement.tagName === 'IMG') {
+        const imgSrc = bgElement.currentSrc || bgElement.src;
+        if (imgSrc) {
+          // Retourner au format CSS url(...) pour compatibilité avec backgroundImage
+          return `url("${imgSrc}")`;
+        }
+      }
+      
+      // PRIORITÉ 2: Si c'est un élément avec background-image CSS
+      if (bgElement) {
+        const bgStyle = window.getComputedStyle(bgElement);
+        const bgImage = bgStyle.backgroundImage;
+        if (bgImage && bgImage !== 'none') {
+          return bgImage;
+        }
+      }
+      
+      // PRIORITÉ 3: Récupérer le style CSS du panel lui-même
+      const computedStyle = window.getComputedStyle(sliderPanel);
+      const backgroundImage = computedStyle.backgroundImage;
+      if (backgroundImage && backgroundImage !== 'none') {
+        return backgroundImage;
+      }
+      
+      // PRIORITÉ 4: Chercher dans les éléments avec des classes de background
+      const fallbackBg = sliderPanel.querySelector('.slider-panel_bg, [class*="bg-"], [class*="background"]');
+      if (fallbackBg) {
+        // Si c'est une image
+        if (fallbackBg.tagName === 'IMG') {
+          const imgSrc = fallbackBg.currentSrc || fallbackBg.src;
+          if (imgSrc) {
+            return `url("${imgSrc}")`;
+          }
+        }
+        // Si c'est un élément avec background CSS
+        const fallbackStyle = window.getComputedStyle(fallbackBg);
+        const fallbackImage = fallbackStyle.backgroundImage;
+        if (fallbackImage && fallbackImage !== 'none') {
+          return fallbackImage;
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur lors de la récupération de l\'image de fond du slider:', e);
+    }
+    
+    return null;
   }
 }
 
