@@ -9,6 +9,7 @@ import { SmoothScrollManagerLite } from './smooth-scroll-manager-lite.js';
 import { SliderManager } from './slider-manager.js';
 // import { SwiperManager } from './swiper-manager.js';
 import { MenuManager } from './menu-manager.js';
+import { ReviewCardManager } from './review-card-manager.js';
 import { ModalManager } from './modal-manager.js';
 import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
@@ -184,10 +185,18 @@ export class VVPlaceApp {
               this.menuManager.navigateToPanel(panelName, options);
             });
           }
-          
+
           // Initialiser l'écouteur du logo pour relancer l'animation loader
           if (this.loaderManager) {
             this.loaderManager.initLogoClickListener();
+          }
+
+          // Cartes de review (indépendant du menu)
+          new ReviewCardManager().init();
+
+          // Charger les médias différés
+          if (window.WindowUtils?.loadDeferredMedia) {
+            window.WindowUtils.loadDeferredMedia();
           }
         }).catch((error) => {
           logger.error(' Erreur lors de l\'initialisation du MenuManager:', error);
@@ -332,7 +341,7 @@ export class VVPlaceApp {
     }
     
     if (this.menuManager) {
-      // Le MenuManager n'a pas de méthode destroy pour l'instant
+      this.menuManager.destroy();
       this.menuManager = null;
     }
     

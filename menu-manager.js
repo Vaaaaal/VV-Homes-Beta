@@ -2,7 +2,6 @@
 // GESTIONNAIRE DU MENU DE NAVIGATION
 // ==========================================
 import { CONFIG } from './config.js';
-import { getSimplifiedConfig, isMobileLiteActive } from './mobile-lite-config.js';
 import logger from './logger.js';
 import { NavigationState } from './navigation-state.js';
 import { NavigationActiveState } from './navigation-active-state.js';
@@ -156,38 +155,6 @@ export class MenuManager {
     // Ajouter les événements pour les boutons actuels
     this.attachCMSButtonEvents();
     
-    // Charger les images différées
-    this.loadDeferredMedia();
-    
-    // Randomiser les cartes de review
-    this.randomizeReviewCards().then(() => {
-      logger.success(' Cartes de review randomisées');
-    });
-    
-    // Traitement texte riche léger (utilitaire central)
-    try {
-      if (window.WindowUtils) {
-        logger.debug(' MenuManager: Début du traitement richtext...');
-        const c = WindowUtils.enhanceRichTextFigures();
-        if (c > 0) {
-          logger.success(` MenuManager: Rich text enrichi (${c} figures traitées)`);
-        } else {
-          logger.debug(' MenuManager: Aucune figure richtext trouvée à traiter');
-          
-          // Réessayer après un court délai au cas où le contenu se charge de manière asynchrone
-          setTimeout(() => {
-            logger.debug(' MenuManager: Nouveau tentative de traitement richtext...');
-            const c2 = WindowUtils.enhanceRichTextFigures();
-            if (c2 > 0) {
-              logger.success(` MenuManager: Rich text enrichi en différé (${c2} figures traitées)`);
-            }
-          }, 500);
-        }
-      }
-    } catch(e) {
-      logger.warn(' MenuManager: Erreur lors du traitement richtext:', e);
-    }
-    
     logger.success(' Menu initialisé avec les éléments actuels');
   }
 
@@ -275,15 +242,14 @@ export class MenuManager {
       
       // Attacher les événements aux nouveaux boutons uniquement
       this.attachCMSButtonEvents();
-      
+
       // Mettre à jour les positions si nécessaire
       this.updatePanelPositions();
-      
+
       // Charger les nouvelles images différées
-      this.loadDeferredMedia();
-      
-      // Randomiser à nouveau les cartes de review si de nouveaux éléments
-      this.randomizeReviewCards();
+      if (window.WindowUtils?.loadDeferredMedia) {
+        window.WindowUtils.loadDeferredMedia();
+      }
     }
   }
 
@@ -381,7 +347,7 @@ export class MenuManager {
       gsap.set(this.menuPanelItems, {
         xPercent: -101,
         opacity: 1,
-        pointerEvents: "auto"
+        pointerEvents: "none"
       });
     }
   }
@@ -557,23 +523,6 @@ export class MenuManager {
     }
   }
 
-  /**
-   * Ouvre un panel via un lien de menu
-   * @param {string} panelName - Le data-name du panel à ouvrir
-   */
-  openPanelByLink(panelName) {
-    // Vérifier si le panel est déjà dans l'historique (ancêtre)
-  const existingIndex = this.navigationState.history.indexOf(panelName);
-    
-    if (existingIndex !== -1) {
-      // Le panel est un ancêtre : ne rien faire
-      return;
-    }
-
-    // Nouveau panel : vérifier s'il a des frères à fermer
-    this.handleSiblingLogic(panelName);
-  }
-
   // ==========================================
   // MÉTHODES D'OUVERTURE/FERMETURE
   // ==========================================
@@ -599,11 +548,12 @@ export class MenuManager {
     }
     
     // Animation d'entrée du premier panel
+    this.menuFirstPanelItem.removeAttribute('aria-hidden');
+    gsap.set(this.menuFirstPanelItem, { pointerEvents: "auto" });
     gsap.to(this.menuFirstPanelItem, {
       duration: CONFIG.ANIMATION.DURATION,
       ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      xPercent: 0,
-      pointerEvents: "auto"
+      xPercent: 0
     });
   }
 
@@ -629,14 +579,14 @@ export class MenuManager {
         // Si closeall est true, tout fermer tout d'un coup, sans animation (même le premier panel) et l'overlay
         if (closeAll) {
           reversedPanels.forEach(panel => {
-            panel.style.display = "none";
+            panel.setAttribute('aria-hidden', 'true');
+            gsap.set(panel, { xPercent: -101, pointerEvents: "none" });
+            const m = panel.querySelector('.menu_panel_item_middle');
+            if (m) m.scrollTop = 0;
           });
           this.closeMenuFinal(true);
-          if (this.menuOverlay) {
-            this.menuOverlay.style.display = "none";
-          }
-          // Ré-initialiser tous les éléments modifiés au dessus (overlay, panels) à leur état de départ
-          this.resetPanelStates(reversedPanels);
+          // Ré-initialiser les classes et le scroll du menu
+          this.resetPanelStates();
         } else {
           this.animatePanelsSequentially(reversedPanels, () => {
             // Callback exécuté après que tous les panels soient fermés
@@ -661,7 +611,10 @@ export class MenuManager {
   closeMenuFinal(closeAll = false) {
     if (closeAll) {
       // Fermer le premier panel sans animation
-      this.menuFirstPanelItem.style.display = "none";
+      this.menuFirstPanelItem.setAttribute('aria-hidden', 'true');
+      gsap.set(this.menuFirstPanelItem, { xPercent: -101, pointerEvents: "none" });
+      const panelMiddle = this.menuFirstPanelItem.querySelector('.menu_panel_item_middle');
+      if (panelMiddle) panelMiddle.scrollTop = 0;
     } else {
       // Animation de sortie du premier panel
       gsap.to(this.menuFirstPanelItem, {
@@ -669,13 +622,14 @@ export class MenuManager {
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
         onComplete: () => {
+          this.menuFirstPanelItem.setAttribute('aria-hidden', 'true');
           // Désactive le menu et ses éléments
           this.menu.classList.remove("is-active");
           this.menuFirstPanel.classList.remove("is-active");
           if (this.menuOverlay) {
             this.menuOverlay.classList.remove("is-active");
           }
-          
+
           // Réactive le scroll principal
           if (this.smoothScrollManager) {
             this.smoothScrollManager.enableScroll();
@@ -708,7 +662,7 @@ export class MenuManager {
     const elements = panelNames.map(n => this.getPanel(n)).filter(Boolean).reverse();
     if (!elements.length) { onComplete && onComplete(); return; }
     if (!animate) {
-      elements.forEach(p => { gsap.set(p, { xPercent: -101 }); const m = p.querySelector('.menu_panel_item_middle'); if (m) m.scrollTop = 0; });
+      elements.forEach(p => { p.setAttribute('aria-hidden', 'true'); gsap.set(p, { xPercent: -101, pointerEvents: "none" }); const m = p.querySelector('.menu_panel_item_middle'); if (m) m.scrollTop = 0; });
       onComplete && onComplete(); return;
     }
     this.animatePanelsSequentially(elements, onComplete);
@@ -817,6 +771,8 @@ export class MenuManager {
   showPanel(panelName, { skipAnimation = false } = {}) {
     const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
     if (!panel) return;
+    panel.removeAttribute('aria-hidden');
+    gsap.set(panel, { pointerEvents: "auto" });
     if (skipAnimation) {
       gsap.set(panel, { xPercent: 0 });
       return;
@@ -917,7 +873,9 @@ export class MenuManager {
         duration: baseDur,
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
+        pointerEvents: "none",
         onComplete: () => {
+          panel.setAttribute('aria-hidden', 'true');
           const panelMiddle = panel.querySelector('.menu_panel_item_middle');
           if (panelMiddle) panelMiddle.scrollTop = 0;
           res();
@@ -932,119 +890,19 @@ export class MenuManager {
   // (méthode legacy clearNavigationHistory retirée; utiliser navigationState.clear())
 
   /**
-   * Remet tous les panels et l'overlay à leur état initial
-   * @param {HTMLElement[]} panels - Les panels à réinitialiser
+   * Remet le menu à son état initial (classes et scroll)
+   * Les états GSAP des panels sont déjà réinitialisés avant l'appel
    */
-  resetPanelStates(panels) {
-    // Réinitialiser l'overlay
+  resetPanelStates() {
     if (this.menuOverlay) {
-      this.menuOverlay.style.display = '';
       this.menuOverlay.classList.remove("is-active");
     }
-
-    // Réinitialiser le premier panel
-    if (this.menuFirstPanelItem) {
-      this.menuFirstPanelItem.style.display = '';
-      gsap.set(this.menuFirstPanelItem, {
-        xPercent: -101,
-        opacity: 1,
-        pointerEvents: "auto"
-      });
-    }
-
-    // Réinitialiser tous les panels passés en paramètre
-    panels.forEach(panel => {
-      if (panel) {
-        panel.style.display = '';
-        gsap.set(panel, {
-          xPercent: -101,
-          opacity: 1,
-          pointerEvents: "auto"
-        });
-        
-        // Réinitialiser le scroll du panel
-        const panelMiddle = panel.querySelector('.menu_panel_item_middle');
-        if (panelMiddle) {
-          panelMiddle.scrollTop = 0;
-        }
-      }
-    });
-
-    // Désactiver le menu et ses éléments
     this.menu.classList.remove("is-active");
     this.menuFirstPanel.classList.remove("is-active");
-    
-    // Réactiver le scroll principal
     if (this.smoothScrollManager) {
       this.smoothScrollManager.enableScroll();
     }
   }
-
-  // ==========================================
-  // MÉTHODES DE GESTION DES STATUTS ACTIFS
-  // ==========================================
-
-  /**
-   * Met à jour les statuts actifs de tous les éléments de navigation
-   * en fonction de l'historique de navigation actuel
-   */
-  updateActiveStates() { this.activeState.refreshStates(); }
-
-  /**
-   * Définit l'état actif d'un élément de navigation
-   * @param {string} panelName - Le data-name du panel
-   * @param {boolean} isActive - Si l'élément doit être actif
-   */
-  // (setElementActiveState géré par NavigationActiveState)
-
-  /**
-   * Définit l'état actif d'un bouton de navigation
-   * @param {HTMLElement} button - Le bouton à modifier
-   * @param {boolean} isActive - Si le bouton doit être actif
-   */
-  // (setButtonActiveState géré par NavigationActiveState)
-
-  /**
-   * Met à jour l'état du panel actuellement visible
-   * @param {string} panelName - Le data-name du panel actuel
-   */
-  // (setCurrentPanelState géré par NavigationActiveState)
-
-  /**
-   * Efface tous les états actifs
-   */
-  clearAllActiveStates() { this.activeState.clearAll(); }
-
-  /**
-   * Vérifie si un élément est dans le chemin actif
-   * @param {string} panelName - Le data-name du panel
-   * @returns {boolean} - True si l'élément est actif
-   */
-  isElementActive(panelName) {
-  return this.activeState.isActive(panelName);
-  }
-
-  /**
-   * Vérifie si un élément est le panel actuellement visible
-   * @param {string} panelName - Le data-name du panel
-   * @returns {boolean} - True si c'est le panel actuel
-   */
-  isCurrentPanel(panelName) {
-  return this.navigationState.current() === panelName;
-  }
-
-  /**
-   * Obtient le chemin d'ancêtres actifs d'un panel donné
-   * @param {string} panelName - Le data-name du panel
-   * @returns {string[]} - Array des ancêtres actifs
-   */
-  getActiveAncestors(panelName) { const idx = this.activeState.currentActivePath.indexOf(panelName); return idx === -1 ? [] : this.activeState.currentActivePath.slice(0, idx); }
-
-  /**
-   * Met à jour les états actifs lors de l'ouverture d'un panel
-   * @param {string} panelName - Le data-name du panel ouvert
-   */
-  // (updateActiveStatesOnOpen/Close retirés au profit de NavigationActiveState)
 
   // ==========================================
   // CYCLE DE VIE
@@ -1058,166 +916,4 @@ export class MenuManager {
     clearTimeout(this.updateTimeout);
   }
 
-  // ==========================================
-  // MÉTHODES UTILITAIRES POUR LES STATUTS ACTIFS
-  // ==========================================
-
-  /**
-   * Retourne des informations sur l'état de navigation actuel
-   * Utile pour le debugging ou l'affichage d'informations
-   * @returns {Object} - Informations sur l'état actuel
-   */
-  getNavigationState() {
-    return {
-      navigationHistory: this.navigationState.snapshot(),
-      currentActivePath: this.activeState.snapshotPath(),
-      activeElements: Array.from(this.activeState.activeElements),
-      currentPanel: this.activeState.current(),
-      isMenuOpen: this.menu?.classList.contains("is-active") || false
-    };
-  }
-
-  /**
-   * Marque un élément comme étant dans le fil d'Ariane (breadcrumb)
-   * @param {string} panelName - Le data-name du panel
-   * @param {boolean} isInBreadcrumb - Si l'élément fait partie du fil d'Ariane
-   */
-  setBreadcrumbState() { /* géré par NavigationActiveState */ }
-
-  /**
-   * Met à jour les états de fil d'Ariane pour tous les éléments
-   */
-  updateBreadcrumbStates() { /* géré par NavigationActiveState */ }
-
-  /**
-   * Attribue aléatoirement la classe "is-reverse" à un nombre aléatoire de cartes
-   */
-  async randomizeReviewCards() {
-    // Attendre que les cartes de review soient chargées
-    await this.waitForReviewCards();
-    
-    const reviewCards = document.querySelectorAll('.review-card_wrap');
-    
-    if (reviewCards.length === 0) {
-      return;
-    }
-
-
-    // Supprimer d'abord toutes les classes "is-reverse" existantes
-    reviewCards.forEach(card => {
-      card.classList.remove('is-reverse');
-    });
-
-    // Calculer un nombre aléatoire inférieur à la moitié du total
-    const maxCards = Math.floor(reviewCards.length / 2);
-    const randomCount = Math.floor(Math.random() * maxCards) + 1; // Au moins 1 carte
-
-
-    // Créer un array avec tous les indices et le mélanger
-    const indices = Array.from({ length: reviewCards.length }, (_, i) => i);
-    
-    // Mélanger l'array (algorithme Fisher-Yates)
-    for (let i = indices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [indices[i], indices[j]] = [indices[j], indices[i]];
-    }
-
-    // Prendre les premiers éléments mélangés et leur ajouter la classe
-    for (let i = 0; i < randomCount; i++) {
-      reviewCards[indices[i]].classList.add('is-reverse');
-    }
-
-    // Appliquer les modifications aux cartes de review
-    this.applyReviewCardChanges();
-  }
-
-  /**
-   * Permet d'appliquer des modifications aux cartes de review au clics sur celles-ci
-   * @return {Promise<void>}
-   */
-  applyReviewCardChanges() {
-    const reviewCards = document.querySelectorAll('.review-card_wrap');
-
-    // Appliquer les modifications à chaque carte
-    reviewCards.forEach(card => {
-      card.addEventListener('click', () => {
-        const isDesktop = window.WindowUtils ? 
-          window.WindowUtils.isDesktop() : 
-          window.innerWidth >= 992;
-
-        if(isDesktop) {
-          return; // Ne pas appliquer les modifications sur desktop
-        }
-
-        // Vérifier si la carte a déjà la classe "is-reverse"
-        if (card.classList.contains('is-reverse')) {
-          // Si oui, retirer la classe
-          card.classList.remove('is-reverse');
-        } else {
-          // Sinon, ajouter la classe
-          card.classList.add('is-reverse');
-        }
-      });
-    });
-  }
-
-  /**
-   * Attend que les cartes de review soient chargées dans le DOM
-   * @returns {Promise<void>}
-   */
-  async waitForReviewCards() {
-    const maxAttempts = 15;
-    const delayBetweenAttempts = 300;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      
-      // Attendre que le DOM se stabilise
-      await new Promise(resolve => setTimeout(resolve, delayBetweenAttempts));
-      
-      // Chercher les cartes de review
-      const reviewCards = document.querySelectorAll('.review-card_wrap');
-      
-      if (reviewCards.length > 0) {
-        return;
-      }
-    }
-    
-  }
-
-  // ==========================================
-  // GESTION DES IMAGES DIFFÉRÉES
-  // ==========================================
-
-  /**
-   * Charge toutes les images avec data-fetch-img après le rendu Nest
-   */
-  loadDeferredMedia() {
-    const mediaElements = document.querySelectorAll('[data-fetch-media]');
-    
-    if (mediaElements.length === 0) {
-      return;
-    }
-    
-    logger.log(`🖼️ Chargement de ${mediaElements.length} images différées...`);
-    
-    mediaElements.forEach((element) => {
-      const mediaUrl = element.dataset.fetchMedia;
-      
-      if (!mediaUrl) {
-        return;
-      }
-      
-      // Appliquer directement l'URL comme src
-      element.src = mediaUrl;
-      
-      // Supprimer l'attribut pour éviter de recharger
-      element.removeAttribute('data-fetch-media');
-    });
-    
-    logger.success(`✅ ${mediaElements.length} médias chargés`);
-  }
-
-  // Méthodes RichTextManager supprimées (intégrées à WindowUtils)
 }
