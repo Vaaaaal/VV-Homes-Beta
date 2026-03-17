@@ -37,12 +37,14 @@ L'application suit une architecture modulaire avec un contrôleur principal orch
 ```
 VVPlaceApp (Contrôleur principal)
 ├── OrientationManager (Gestionnaire centralisé d'orientation)
-├── LoaderManager (Animations de chargement)
-├── SmoothScrollManager (Scroll fluide avec Lenis)
+├── LoaderManager / LoaderManagerLite (Animations de chargement)
+├── SmoothScrollManager / SmoothScrollManagerLite (Scroll fluide avec Lenis)
 ├── SliderManager (Slider horizontal principal)
-├── SwiperManager (Galeries d'images)
-├── MenuManager (Navigation hiérarchique)
+├── MenuManager + CmsFetchManager (Navigation hiérarchique + CMS)
 ├── ModalManager (Fenêtres modales)
+├── ImageModal (Modal image/vidéo au clic)
+├── ReviewCardManager (Cartes de review)
+├── MobileLiteManager (Gestion mode mobile lite)
 └── Traitement texte riche inline (figcaption sources via WindowUtils)
 ```
 
@@ -83,6 +85,13 @@ VVPlaceApp (Contrôleur principal)
 - **Data attributes** pour configuration (`data-modal-trigger`, `data-modal-item`)
 - **Intégration Swiper** pour galeries dans les modales
 - **Fermeture intelligente** : overlay, boutons, échappement
+
+### 🖼️ Modal image/vidéo (ImageModal)
+- **Clic sur image ou vidéo** pour ouvrir en plein écran
+- **Swiper vertical** pour naviguer entre les médias d'un même contexte
+- **Exclusion ciblée** via `data-image-no-modal` sur une image/vidéo
+- **Autoplay configurable** par page via `data-image-modal-autoplay="true"` sur `<body>`
+- **Désactivé sur mobile** (< 768px) automatiquement
 
 ## 🔧 Technologies utilisées
 
@@ -129,26 +138,34 @@ VVPlaceApp (Contrôleur principal)
 
 ```
 /
-├── script.js                 # Point d'entrée
-├── app.js                   # Contrôleur principal
-├── config.js                # Configuration globale
-├── logger.js                # Système de logging
-├── utils.js                 # Utilitaires responsive
+├── script.js                       # Point d'entrée
+├── app.js                          # Contrôleur principal
+├── config.js                       # Configuration globale
+├── logger.js                       # Système de logging
+├── utils.js                        # Utilitaires responsive (WindowUtils)
 │
 ├── Gestionnaires principaux/
-│   ├── orientation-manager.js  # Orientation centralisée
-│   ├── loader-manager.js       # Animations de chargement
-│   ├── smooth-scroll-manager.js # Scroll fluide
-│   ├── slider-manager.js       # Slider horizontal
-│   ├── menu-manager.js         # Navigation hiérarchique
-│   ├── modal-manager.js        # Système modal
-│   └── swiper-manager.js       # Galeries d'images
+│   ├── orientation-manager.js      # Orientation centralisée
+│   ├── loader-manager.js           # Animations de chargement (desktop)
+│   ├── loader-manager-lite.js      # Animations de chargement (mobile)
+│   ├── smooth-scroll-manager.js    # Scroll fluide Lenis (desktop)
+│   ├── smooth-scroll-manager-lite.js # Scroll fluide (mobile)
+│   ├── slider-manager.js           # Slider horizontal
+│   ├── menu-manager.js             # Navigation hiérarchique
+│   ├── cms-fetch-manager.js        # Chargement CMS dynamique
+│   ├── modal-manager.js            # Système modal (data-modal-*)
+│   ├── modal-image.js              # Modal image/vidéo au clic
+│   ├── review-card-manager.js      # Cartes de review
+│   ├── mobile-lite-manager.js      # Gestion mode mobile lite
+│   ├── navigation-state.js         # État de navigation
+│   └── navigation-active-state.js  # États actifs du menu
 │
 └── Sécurité et debugging/
-    ├── crash-detector.js       # Détection d'erreurs
-    ├── emergency-mode.js       # Mode de secours
-    ├── debug-utils.js          # Outils de diagnostic
-    └── menu-fallback.js        # Menu de secours
+    ├── crash-detector.js           # Détection d'erreurs
+    ├── emergency-mode.js           # Mode de secours
+    ├── performance-optimizations.js # Optimisations perf
+    ├── debug-utils.js              # Outils de diagnostic
+    └── menu-fallback.js            # Menu de secours
 ```
 
 ## 🔧 Modules principaux
@@ -157,13 +174,14 @@ VVPlaceApp (Contrôleur principal)
 **Contrôleur central** orchestrant l'initialisation séquentielle :
 1. Reset de scroll d'urgence
 2. OrientationManager (priorité 1)
-3. SmoothScrollManager (base)
-4. SwiperManager (indépendant)
-5. SliderManager (si éléments présents)
-6. LoaderManager (après slider)
-7. MenuManager (navigation)
-8. ModalManager (si éléments présents)
-9. Traitement texte riche inline (figures)
+3. SmoothScrollManager / Lite (selon viewport)
+4. SliderManager + LoaderManager (desktop uniquement, si éléments présents)
+5. MenuManager + CmsFetchManager (si éléments présents)
+6. ModalManager (desktop uniquement, si éléments présents)
+7. Traitement texte riche inline (figures)
+8. Organisation des slides + insertion dynamique tags CMS
+9. ImageModal (toutes pages, autoplay via `data-image-modal-autoplay` sur `<body>`)
+10. MobileLiteManager
 
 ### OrientationManager
 **Gestionnaire centralisé** évitant les conflits :
@@ -192,6 +210,14 @@ VVPlaceApp (Contrôleur principal)
 - Historique avec logique ancestrale
 - États actifs (breadcrumb, courant)
 - Navigation directe par liens
+
+### ImageModal
+**Modal image/vidéo légère** au clic :
+- Délégation d'événement au niveau document (capture)
+- Swiper vertical multi-slides dans le contexte de l'élément cliqué
+- Exclusion via `data-image-no-modal` (inline ou depuis figcaption)
+- Autoplay vidéo configurable par page : `data-image-modal-autoplay="true"` sur `<body>`
+- Désactivée automatiquement sur mobile (< 768px)
 
 ## 📱 Configuration responsive
 

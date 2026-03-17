@@ -388,6 +388,18 @@ WindowUtils.setupSliderOrder = function setupSliderOrder() {
     return true;
 };
 
+// Charge les images/médias différés (data-fetch-media → src)
+WindowUtils.loadDeferredMedia = function loadDeferredMedia() {
+    const mediaElements = document.querySelectorAll('[data-fetch-media]');
+    if (mediaElements.length === 0) return;
+    mediaElements.forEach((element) => {
+        const mediaUrl = element.dataset.fetchMedia;
+        if (!mediaUrl) return;
+        element.src = mediaUrl;
+        element.removeAttribute('data-fetch-media');
+    });
+};
+
 // Exposer les nouveaux helpers globalement (si déjà exporté, simplement étendu)
 if (typeof window !== 'undefined') {
     if (typeof window.WindowUtils === 'undefined') {

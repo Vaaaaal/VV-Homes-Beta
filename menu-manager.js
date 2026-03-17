@@ -2,24 +2,11 @@
 // GESTIONNAIRE DU MENU DE NAVIGATION
 // ==========================================
 import { CONFIG } from './config.js';
-import { getSimplifiedConfig, isMobileLiteActive } from './mobile-lite-config.js';
 import logger from './logger.js';
 import { NavigationState } from './navigation-state.js';
 import { NavigationActiveState } from './navigation-active-state.js';
 
-// ==========================================
-// CONSTANTES & HELPERS INTERNES
-// ==========================================
-const CMS_MINIMUM_ELEMENTS = 20;   // Seuil minimum pour initialisation fonctionnelle
-const CMS_INITIAL_WAIT = 1000;     // Attente initiale avant premier comptage
-const CMS_MAX_WAIT = 6000;         // Temps max pour atteindre le seuil
-const FINDSWEET_MAX_WAIT = 8000;   // Timeout Finsweet
-const FINDSWEET_CHECK_INTERVAL = 200; // Intervalle de polling
-
-// Promesse de délai
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
-// Normalisation en tableau
-const toArray = (list) => Array.isArray(list) ? list : Array.from(list || []);
+// (pas de constantes CMS — le DOM Webflow est déjà rendu nativement)
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -56,139 +43,17 @@ export class MenuManager {
   // ==========================================
 
   /**
-   * Initialise le système de menu avec approche incrémentale
+   * Initialise le menu — le DOM Webflow est déjà rendu nativement, pas d'attente requise
    */
   async init() {
-  logger.menu(' MenuManager - Début initialisation');
-    
     if (!this.menu || !this.menuButton) {
-      logger.error(' MenuManager - Éléments essentiels manquants:', {
-        menu: !!this.menu,
-        menuButton: !!this.menuButton
-      });
       throw new Error('Éléments essentiels du menu manquants');
     }
-    
-    try {
-  logger.log('⏳ Attente Finsweet Attributes');
-  await this.waitForFinsweetAttributes();
-  logger.success(' Finsweet Attributes prêt');
-
-  logger.info(' Initialisation incrémentale CMS');
-  await this.initIncrementalCMS();
-      
-  logger.success(' MenuManager - Initialisation OK');
-      
-    } catch (error) {
-      logger.error(' MenuManager - Erreur lors de l\'initialisation:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialisation incrémentale des éléments CMS
-   */
-  async initIncrementalCMS() {
-  logger.log(`🎯 Objectif initial : ≥ ${CMS_MINIMUM_ELEMENTS} boutons CMS`);
-  await delay(CMS_INITIAL_WAIT);
-    
-    // Obtenir les éléments actuels
-    this.updateCMSButtons();
-    const initialCount = this.cmsButtons.length;
-    
-  logger.log(`📌 ${initialCount} boutons CMS détectés initialement`);
-    
-    if (initialCount >= CMS_MINIMUM_ELEMENTS) {
-      logger.success(` Seuil minimum atteint (${initialCount}/${CMS_MINIMUM_ELEMENTS})`);
-      this.initializeMenuWithCurrentElements();
-      
-      // Surveiller les nouveaux éléments en arrière-plan
-      this.startIncrementalWatcher();
-      
-    } else {
-      logger.log(`⏳ En attente (actuel ${initialCount}/${CMS_MINIMUM_ELEMENTS})...`);
-      const startTime = Date.now();
-      while (Date.now() - startTime < CMS_MAX_WAIT) {
-        await delay(500);
-        this.updateCMSButtons();
-        const currentCount = this.cmsButtons.length;
-        if (currentCount !== initialCount) {
-          logger.log(`➕ ${currentCount} boutons CMS (Δ ${currentCount - initialCount})`);
-        }
-        if (currentCount >= CMS_MINIMUM_ELEMENTS) {
-          logger.success(` Seuil minimum atteint (${currentCount}/${CMS_MINIMUM_ELEMENTS})`);
-          this.initializeMenuWithCurrentElements();
-          this.startIncrementalWatcher();
-          return;
-        }
-      }
-      logger.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
-      this.initializeMenuWithCurrentElements();
-      this.startIncrementalWatcher();
-    }
-  }
-
-  /**
-   * Met à jour la liste des boutons CMS
-   */
-  updateCMSButtons() {
-    const newButtons = toArray(document.querySelectorAll('.menu_panel_collection_item.is-btn'));
-    const previousCount = this.cmsButtons.length;
-    this.cmsButtons = newButtons;
-    
-    if (newButtons.length !== previousCount && previousCount > 0) {
-      logger.info(` Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}`);
-    }
-    
-    return newButtons;
-  }
-
-  /**
-   * Initialise le menu avec les éléments actuellement disponibles
-   */
-  initializeMenuWithCurrentElements() {
-  logger.log(`🎨 Initialisation du menu (${this.cmsButtons.length} boutons)`);
-    
-    // Initialiser les positions et événements
+    this.cmsButtons = Array.from(document.querySelectorAll(CONFIG.SELECTORS.MENU_FOLDERS));
     this.initPanelPositions();
     this.initBasicEvents();
-    
-    // Ajouter les événements pour les boutons actuels
     this.attachCMSButtonEvents();
-    
-    // Charger les images différées
-    this.loadDeferredMedia();
-    
-    // Randomiser les cartes de review
-    this.randomizeReviewCards().then(() => {
-      logger.success(' Cartes de review randomisées');
-    });
-    
-    // Traitement texte riche léger (utilitaire central)
-    try {
-      if (window.WindowUtils) {
-        logger.debug(' MenuManager: Début du traitement richtext...');
-        const c = WindowUtils.enhanceRichTextFigures();
-        if (c > 0) {
-          logger.success(` MenuManager: Rich text enrichi (${c} figures traitées)`);
-        } else {
-          logger.debug(' MenuManager: Aucune figure richtext trouvée à traiter');
-          
-          // Réessayer après un court délai au cas où le contenu se charge de manière asynchrone
-          setTimeout(() => {
-            logger.debug(' MenuManager: Nouveau tentative de traitement richtext...');
-            const c2 = WindowUtils.enhanceRichTextFigures();
-            if (c2 > 0) {
-              logger.success(` MenuManager: Rich text enrichi en différé (${c2} figures traitées)`);
-            }
-          }, 500);
-        }
-      }
-    } catch(e) {
-      logger.warn(' MenuManager: Erreur lors du traitement richtext:', e);
-    }
-    
-    logger.success(' Menu initialisé avec les éléments actuels');
+    logger.success('MenuManager initialisé');
   }
 
   /**
@@ -216,173 +81,11 @@ export class MenuManager {
   }
 
   /**
-   * Démarre la surveillance incrémentale des nouveaux éléments
-   */
-  startIncrementalWatcher() {
-    logger.log('👁️ Démarrage de la surveillance incrémentale...');
-    
-    const observer = new MutationObserver((mutations) => {
-      let hasNewElements = false;
-      
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              // Vérifier si le nouveau nœud contient des boutons CMS
-              const newButtons = node.matches?.('.menu_panel_collection_item.is-btn') 
-                ? [node] 
-                : Array.from(node.querySelectorAll?.('.menu_panel_collection_item.is-btn') || []);
-              
-              if (newButtons.length > 0) {
-                hasNewElements = true;
-              }
-            }
-          });
-        }
-      });
-      
-      if (hasNewElements) {
-        // Debounce les mises à jour
-        clearTimeout(this.updateTimeout);
-        this.updateTimeout = setTimeout(() => {
-          this.handleNewCMSElements();
-        }, 200);
-      }
-    });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    
-    // Stocker l'observer pour pouvoir l'arrêter plus tard
-    this.incrementalObserver = observer;
-    
-    logger.success(' Surveillance incrémentale active');
-  }
-
-  /**
-   * Traite les nouveaux éléments CMS détectés
-   */
-  handleNewCMSElements() {
-    const previousCount = this.cmsButtons.length;
-    this.updateCMSButtons();
-    const newCount = this.cmsButtons.length;
-    
-    if (newCount > previousCount) {
-      const addedCount = newCount - previousCount;
-      logger.log(`🆕 ${addedCount} nouveaux boutons CMS détectés (total: ${newCount})`);
-      
-      // Attacher les événements aux nouveaux boutons uniquement
-      this.attachCMSButtonEvents();
-      
-      // Mettre à jour les positions si nécessaire
-      this.updatePanelPositions();
-      
-      // Charger les nouvelles images différées
-      this.loadDeferredMedia();
-      
-      // Randomiser à nouveau les cartes de review si de nouveaux éléments
-      this.randomizeReviewCards();
-    }
-  }
-
-  /**
-   * Met à jour les positions des panels après ajout d'éléments
-   */
-  updatePanelPositions() {
-    logger.info(' Mise à jour des positions des panels...');
-    this.initPanelPositions();
-  }
-
-  /**
-   * Attend que Finsweet Attributes soit chargé avec optimisation
-   */
-  async waitForFinsweetAttributes() {
-  const maxWaitTime = FINDSWEET_MAX_WAIT; // 8 secondes max
-  const checkInterval = FINDSWEET_CHECK_INTERVAL; // Vérifier toutes les 200ms
-  const startTime = Date.now();
-
-  // Vérification immédiate
-  if (this.checkFinsweetLoaded()) {
-    logger.success(' Finsweet Attributes déjà disponible');
-    return true;
-  }
-
-  logger.log('⏳ Attente de Finsweet Attributes...');
-
-  return new Promise((resolve) => {
-    let resolved = false;
-    // Ajout : écoute de l'événement fs-cmsload avec afterRender
-    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
-    listContainers.forEach(container => {
-      container.addEventListener('fs-cmsload', (event) => {
-        if (event.detail?.type === 'afterRender' && !resolved) {
-          resolved = true;
-          logger.success(' Finsweet Attributes afterRender détecté');
-          resolve(true);
-        }
-      }, { once: true });
-    });
-
-    // Fallback polling
-    const checkLoad = () => {
-      if (resolved) return;
-      if (this.checkFinsweetLoaded()) {
-        logger.success(' Finsweet Attributes détecté (polling)');
-        resolve(true);
-        return;
-      }
-      if (Date.now() - startTime > maxWaitTime) {
-        logger.warn(' Timeout Finsweet Attributes - Continuation sans attendre');
-        resolve(false); // Ne pas rejeter, juste continuer
-        return;
-      }
-      setTimeout(checkLoad, checkInterval);
-    };
-    checkLoad();
-  });
-}
-
-  /**
-   * Vérifie si Finsweet est chargé de manière optimisée
-   */
-  checkFinsweetLoaded() {
-    // Vérifier si les listes CMS sont présentes
-    const cmsElements = document.querySelectorAll('.menu_panel_collection_item');
-    if (cmsElements.length < 10) {
-      return false; // Pas assez d'éléments CMS
-    }
-    
-    // Vérifier si les conteneurs Finsweet sont présents
-    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
-    if (listContainers.length === 0) {
-      // Pas de conteneurs Finsweet, mais si on a des éléments CMS, c'est bon
-      return cmsElements.length > 20;
-    }
-    
-    // Vérifier si au moins une liste a du contenu
-    let hasContent = false;
-    listContainers.forEach(container => {
-      const items = container.querySelectorAll('.menu_panel_collection_item');
-      if (items.length > 5) {
-        hasContent = true;
-      }
-    });
-    
-    return hasContent;
-  }
-
-  /**
    * Initialise les positions des panels
    */
   initPanelPositions() {
     if (this.menuPanelItems) {
-      gsap.set(this.menuPanelItems, {
-        xPercent: -101,
-        opacity: 1,
-        pointerEvents: "auto"
-      });
+      gsap.set(this.menuPanelItems, { xPercent: -101, opacity: 1, pointerEvents: "none" });
     }
   }
 
@@ -557,23 +260,6 @@ export class MenuManager {
     }
   }
 
-  /**
-   * Ouvre un panel via un lien de menu
-   * @param {string} panelName - Le data-name du panel à ouvrir
-   */
-  openPanelByLink(panelName) {
-    // Vérifier si le panel est déjà dans l'historique (ancêtre)
-  const existingIndex = this.navigationState.history.indexOf(panelName);
-    
-    if (existingIndex !== -1) {
-      // Le panel est un ancêtre : ne rien faire
-      return;
-    }
-
-    // Nouveau panel : vérifier s'il a des frères à fermer
-    this.handleSiblingLogic(panelName);
-  }
-
   // ==========================================
   // MÉTHODES D'OUVERTURE/FERMETURE
   // ==========================================
@@ -599,11 +285,12 @@ export class MenuManager {
     }
     
     // Animation d'entrée du premier panel
+    this.menuFirstPanelItem.removeAttribute('aria-hidden');
+    gsap.set(this.menuFirstPanelItem, { pointerEvents: "auto" });
     gsap.to(this.menuFirstPanelItem, {
       duration: CONFIG.ANIMATION.DURATION,
       ease: CONFIG.ANIMATION.EASE.POWER2.OUT,
-      xPercent: 0,
-      pointerEvents: "auto"
+      xPercent: 0
     });
   }
 
@@ -629,14 +316,14 @@ export class MenuManager {
         // Si closeall est true, tout fermer tout d'un coup, sans animation (même le premier panel) et l'overlay
         if (closeAll) {
           reversedPanels.forEach(panel => {
-            panel.style.display = "none";
+            panel.setAttribute('aria-hidden', 'true');
+            gsap.set(panel, { xPercent: -101, pointerEvents: "none" });
+            const m = panel.querySelector('.menu_panel_item_middle');
+            if (m) m.scrollTop = 0;
           });
           this.closeMenuFinal(true);
-          if (this.menuOverlay) {
-            this.menuOverlay.style.display = "none";
-          }
-          // Ré-initialiser tous les éléments modifiés au dessus (overlay, panels) à leur état de départ
-          this.resetPanelStates(reversedPanels);
+          // Ré-initialiser les classes et le scroll du menu
+          this.resetPanelStates();
         } else {
           this.animatePanelsSequentially(reversedPanels, () => {
             // Callback exécuté après que tous les panels soient fermés
@@ -661,7 +348,10 @@ export class MenuManager {
   closeMenuFinal(closeAll = false) {
     if (closeAll) {
       // Fermer le premier panel sans animation
-      this.menuFirstPanelItem.style.display = "none";
+      this.menuFirstPanelItem.setAttribute('aria-hidden', 'true');
+      gsap.set(this.menuFirstPanelItem, { xPercent: -101, pointerEvents: "none" });
+      const panelMiddle = this.menuFirstPanelItem.querySelector('.menu_panel_item_middle');
+      if (panelMiddle) panelMiddle.scrollTop = 0;
     } else {
       // Animation de sortie du premier panel
       gsap.to(this.menuFirstPanelItem, {
@@ -669,13 +359,14 @@ export class MenuManager {
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
         onComplete: () => {
+          this.menuFirstPanelItem.setAttribute('aria-hidden', 'true');
           // Désactive le menu et ses éléments
           this.menu.classList.remove("is-active");
           this.menuFirstPanel.classList.remove("is-active");
           if (this.menuOverlay) {
             this.menuOverlay.classList.remove("is-active");
           }
-          
+
           // Réactive le scroll principal
           if (this.smoothScrollManager) {
             this.smoothScrollManager.enableScroll();
@@ -708,7 +399,7 @@ export class MenuManager {
     const elements = panelNames.map(n => this.getPanel(n)).filter(Boolean).reverse();
     if (!elements.length) { onComplete && onComplete(); return; }
     if (!animate) {
-      elements.forEach(p => { gsap.set(p, { xPercent: -101 }); const m = p.querySelector('.menu_panel_item_middle'); if (m) m.scrollTop = 0; });
+      elements.forEach(p => { p.setAttribute('aria-hidden', 'true'); gsap.set(p, { xPercent: -101, pointerEvents: "none" }); const m = p.querySelector('.menu_panel_item_middle'); if (m) m.scrollTop = 0; });
       onComplete && onComplete(); return;
     }
     this.animatePanelsSequentially(elements, onComplete);
@@ -800,29 +491,83 @@ export class MenuManager {
   findButtonByPanelName(panelName) { return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null; }
 
   /**
-   * Navigue vers un nouveau panel
+   * Navigue vers un nouveau panel — pre-fetch au clic
    * @param {string} panelName - Le data-name du panel
    */
   navigateToNewPanel(panelName) {
     this.addToNavigationHistory(panelName);
+
+    if (this.cmsFetchManager) {
+      this.cmsFetchManager.prefetch(this._buildFetchUrl(panelName));
+    }
+
     this.showPanel(panelName);
     this.activeState.onOpen(panelName);
     this.updateExitAllButtonsVisibility();
   }
 
   /**
-   * Affiche un panel avec animation
+   * Affiche un panel — le crée dynamiquement si inexistant, injecte le contenu fetché
    * @param {string} panelName - Le data-name du panel
    */
   showPanel(panelName, { skipAnimation = false } = {}) {
-    const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
-    if (!panel) return;
-    if (skipAnimation) {
-      gsap.set(panel, { xPercent: 0 });
-      return;
+    let panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+
+    if (!panel) {
+      panel = this._createDynamicPanel(panelName);
     }
+    if (!panel) return;
+
+    if (this.cmsFetchManager) {
+      const slot = panel.querySelector('.menu_panel_item_middle');
+      if (!slot?.dataset.fetched) {
+        slot?.classList.add('is-loading');
+        this.cmsFetchManager.fetchAndInject(this._buildFetchUrl(panelName), panel).then(injected => {
+          slot?.classList.remove('is-loading');
+          if (injected) this._attachEventsInPanel(panel);
+        });
+      }
+    }
+
+    panel.removeAttribute('aria-hidden');
+    gsap.set(panel, { pointerEvents: "auto" });
+    if (skipAnimation) { gsap.set(panel, { xPercent: 0 }); return; }
     gsap.to(panel, { duration: CONFIG.ANIMATION.DURATION, ease: CONFIG.ANIMATION.EASE.POWER2.OUT, xPercent: 0 });
   }
+
+  // Crée un panel vide à la volée pour les Dossiers imbriqués découverts via fetch
+  _createDynamicPanel(panelName) {
+    const panel = document.createElement('div');
+    panel.className = 'menu_panel_item is-dynamic';
+    panel.dataset.name = panelName;
+    panel.innerHTML = '<div class="menu_panel_item_middle"></div>';
+    gsap.set(panel, { xPercent: -101, pointerEvents: "none" });
+    this.menu.appendChild(panel);
+    return panel;
+  }
+
+  // Attache les events aux boutons Dossiers dans le contenu injecté
+  // et définit data-parent automatiquement (pas besoin de le configurer dans Webflow)
+  _attachEventsInPanel(container) {
+    const parentName = container.dataset.name;
+    container.querySelectorAll(CONFIG.SELECTORS.MENU_FOLDERS).forEach(btn => {
+      if (!btn.hasAttribute('data-vv-initialized')) {
+        if (!btn.dataset.parent) btn.dataset.parent = parentName;
+        this.attachButtonEvents(btn);
+        btn.setAttribute('data-vv-initialized', 'true');
+        this.cmsButtons.push(btn);
+      }
+    });
+    if (window.WindowUtils?.loadDeferredMedia) {
+      window.WindowUtils.loadDeferredMedia();
+    }
+  }
+
+  // Construit l'URL de fetch à partir du slug du panel
+  _buildFetchUrl(panelName) { return `${CONFIG.FETCH_BASE_PATH}/${panelName}`; }
+
+  // Injecte le CmsFetchManager après init
+  setCmsFetchManager(manager) { this.cmsFetchManager = manager; }
 
   /**
    * Ajoute un panel à l'historique
@@ -917,7 +662,9 @@ export class MenuManager {
         duration: baseDur,
         ease: CONFIG.ANIMATION.EASE.POWER2.IN,
         xPercent: -101,
+        pointerEvents: "none",
         onComplete: () => {
+          panel.setAttribute('aria-hidden', 'true');
           const panelMiddle = panel.querySelector('.menu_panel_item_middle');
           if (panelMiddle) panelMiddle.scrollTop = 0;
           res();
@@ -932,292 +679,26 @@ export class MenuManager {
   // (méthode legacy clearNavigationHistory retirée; utiliser navigationState.clear())
 
   /**
-   * Remet tous les panels et l'overlay à leur état initial
-   * @param {HTMLElement[]} panels - Les panels à réinitialiser
+   * Remet le menu à son état initial (classes et scroll)
+   * Les états GSAP des panels sont déjà réinitialisés avant l'appel
    */
-  resetPanelStates(panels) {
-    // Réinitialiser l'overlay
+  resetPanelStates() {
     if (this.menuOverlay) {
-      this.menuOverlay.style.display = '';
       this.menuOverlay.classList.remove("is-active");
     }
-
-    // Réinitialiser le premier panel
-    if (this.menuFirstPanelItem) {
-      this.menuFirstPanelItem.style.display = '';
-      gsap.set(this.menuFirstPanelItem, {
-        xPercent: -101,
-        opacity: 1,
-        pointerEvents: "auto"
-      });
-    }
-
-    // Réinitialiser tous les panels passés en paramètre
-    panels.forEach(panel => {
-      if (panel) {
-        panel.style.display = '';
-        gsap.set(panel, {
-          xPercent: -101,
-          opacity: 1,
-          pointerEvents: "auto"
-        });
-        
-        // Réinitialiser le scroll du panel
-        const panelMiddle = panel.querySelector('.menu_panel_item_middle');
-        if (panelMiddle) {
-          panelMiddle.scrollTop = 0;
-        }
-      }
-    });
-
-    // Désactiver le menu et ses éléments
     this.menu.classList.remove("is-active");
     this.menuFirstPanel.classList.remove("is-active");
-    
-    // Réactiver le scroll principal
     if (this.smoothScrollManager) {
       this.smoothScrollManager.enableScroll();
     }
+    this.menu.querySelectorAll('.menu_panel_item.is-dynamic').forEach(p => p.remove());
   }
-
-  // ==========================================
-  // MÉTHODES DE GESTION DES STATUTS ACTIFS
-  // ==========================================
-
-  /**
-   * Met à jour les statuts actifs de tous les éléments de navigation
-   * en fonction de l'historique de navigation actuel
-   */
-  updateActiveStates() { this.activeState.refreshStates(); }
-
-  /**
-   * Définit l'état actif d'un élément de navigation
-   * @param {string} panelName - Le data-name du panel
-   * @param {boolean} isActive - Si l'élément doit être actif
-   */
-  // (setElementActiveState géré par NavigationActiveState)
-
-  /**
-   * Définit l'état actif d'un bouton de navigation
-   * @param {HTMLElement} button - Le bouton à modifier
-   * @param {boolean} isActive - Si le bouton doit être actif
-   */
-  // (setButtonActiveState géré par NavigationActiveState)
-
-  /**
-   * Met à jour l'état du panel actuellement visible
-   * @param {string} panelName - Le data-name du panel actuel
-   */
-  // (setCurrentPanelState géré par NavigationActiveState)
-
-  /**
-   * Efface tous les états actifs
-   */
-  clearAllActiveStates() { this.activeState.clearAll(); }
-
-  /**
-   * Vérifie si un élément est dans le chemin actif
-   * @param {string} panelName - Le data-name du panel
-   * @returns {boolean} - True si l'élément est actif
-   */
-  isElementActive(panelName) {
-  return this.activeState.isActive(panelName);
-  }
-
-  /**
-   * Vérifie si un élément est le panel actuellement visible
-   * @param {string} panelName - Le data-name du panel
-   * @returns {boolean} - True si c'est le panel actuel
-   */
-  isCurrentPanel(panelName) {
-  return this.navigationState.current() === panelName;
-  }
-
-  /**
-   * Obtient le chemin d'ancêtres actifs d'un panel donné
-   * @param {string} panelName - Le data-name du panel
-   * @returns {string[]} - Array des ancêtres actifs
-   */
-  getActiveAncestors(panelName) { const idx = this.activeState.currentActivePath.indexOf(panelName); return idx === -1 ? [] : this.activeState.currentActivePath.slice(0, idx); }
-
-  /**
-   * Met à jour les états actifs lors de l'ouverture d'un panel
-   * @param {string} panelName - Le data-name du panel ouvert
-   */
-  // (updateActiveStatesOnOpen/Close retirés au profit de NavigationActiveState)
 
   // ==========================================
   // CYCLE DE VIE
   // ==========================================
   destroy() {
     document.removeEventListener('click', this._onDocumentClick);
-    if (this.incrementalObserver) {
-      try { this.incrementalObserver.disconnect(); } catch { /* noop */ }
-      this.incrementalObserver = null;
-    }
-    clearTimeout(this.updateTimeout);
   }
 
-  // ==========================================
-  // MÉTHODES UTILITAIRES POUR LES STATUTS ACTIFS
-  // ==========================================
-
-  /**
-   * Retourne des informations sur l'état de navigation actuel
-   * Utile pour le debugging ou l'affichage d'informations
-   * @returns {Object} - Informations sur l'état actuel
-   */
-  getNavigationState() {
-    return {
-      navigationHistory: this.navigationState.snapshot(),
-      currentActivePath: this.activeState.snapshotPath(),
-      activeElements: Array.from(this.activeState.activeElements),
-      currentPanel: this.activeState.current(),
-      isMenuOpen: this.menu?.classList.contains("is-active") || false
-    };
-  }
-
-  /**
-   * Marque un élément comme étant dans le fil d'Ariane (breadcrumb)
-   * @param {string} panelName - Le data-name du panel
-   * @param {boolean} isInBreadcrumb - Si l'élément fait partie du fil d'Ariane
-   */
-  setBreadcrumbState() { /* géré par NavigationActiveState */ }
-
-  /**
-   * Met à jour les états de fil d'Ariane pour tous les éléments
-   */
-  updateBreadcrumbStates() { /* géré par NavigationActiveState */ }
-
-  /**
-   * Attribue aléatoirement la classe "is-reverse" à un nombre aléatoire de cartes
-   */
-  async randomizeReviewCards() {
-    // Attendre que les cartes de review soient chargées
-    await this.waitForReviewCards();
-    
-    const reviewCards = document.querySelectorAll('.review-card_wrap');
-    
-    if (reviewCards.length === 0) {
-      return;
-    }
-
-
-    // Supprimer d'abord toutes les classes "is-reverse" existantes
-    reviewCards.forEach(card => {
-      card.classList.remove('is-reverse');
-    });
-
-    // Calculer un nombre aléatoire inférieur à la moitié du total
-    const maxCards = Math.floor(reviewCards.length / 2);
-    const randomCount = Math.floor(Math.random() * maxCards) + 1; // Au moins 1 carte
-
-
-    // Créer un array avec tous les indices et le mélanger
-    const indices = Array.from({ length: reviewCards.length }, (_, i) => i);
-    
-    // Mélanger l'array (algorithme Fisher-Yates)
-    for (let i = indices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [indices[i], indices[j]] = [indices[j], indices[i]];
-    }
-
-    // Prendre les premiers éléments mélangés et leur ajouter la classe
-    for (let i = 0; i < randomCount; i++) {
-      reviewCards[indices[i]].classList.add('is-reverse');
-    }
-
-    // Appliquer les modifications aux cartes de review
-    this.applyReviewCardChanges();
-  }
-
-  /**
-   * Permet d'appliquer des modifications aux cartes de review au clics sur celles-ci
-   * @return {Promise<void>}
-   */
-  applyReviewCardChanges() {
-    const reviewCards = document.querySelectorAll('.review-card_wrap');
-
-    // Appliquer les modifications à chaque carte
-    reviewCards.forEach(card => {
-      card.addEventListener('click', () => {
-        const isDesktop = window.WindowUtils ? 
-          window.WindowUtils.isDesktop() : 
-          window.innerWidth >= 992;
-
-        if(isDesktop) {
-          return; // Ne pas appliquer les modifications sur desktop
-        }
-
-        // Vérifier si la carte a déjà la classe "is-reverse"
-        if (card.classList.contains('is-reverse')) {
-          // Si oui, retirer la classe
-          card.classList.remove('is-reverse');
-        } else {
-          // Sinon, ajouter la classe
-          card.classList.add('is-reverse');
-        }
-      });
-    });
-  }
-
-  /**
-   * Attend que les cartes de review soient chargées dans le DOM
-   * @returns {Promise<void>}
-   */
-  async waitForReviewCards() {
-    const maxAttempts = 15;
-    const delayBetweenAttempts = 300;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      attempts++;
-      
-      // Attendre que le DOM se stabilise
-      await new Promise(resolve => setTimeout(resolve, delayBetweenAttempts));
-      
-      // Chercher les cartes de review
-      const reviewCards = document.querySelectorAll('.review-card_wrap');
-      
-      if (reviewCards.length > 0) {
-        return;
-      }
-    }
-    
-  }
-
-  // ==========================================
-  // GESTION DES IMAGES DIFFÉRÉES
-  // ==========================================
-
-  /**
-   * Charge toutes les images avec data-fetch-img après le rendu Nest
-   */
-  loadDeferredMedia() {
-    const mediaElements = document.querySelectorAll('[data-fetch-media]');
-    
-    if (mediaElements.length === 0) {
-      return;
-    }
-    
-    logger.log(`🖼️ Chargement de ${mediaElements.length} images différées...`);
-    
-    mediaElements.forEach((element) => {
-      const mediaUrl = element.dataset.fetchMedia;
-      
-      if (!mediaUrl) {
-        return;
-      }
-      
-      // Appliquer directement l'URL comme src
-      element.src = mediaUrl;
-      
-      // Supprimer l'attribut pour éviter de recharger
-      element.removeAttribute('data-fetch-media');
-    });
-    
-    logger.success(`✅ ${mediaElements.length} médias chargés`);
-  }
-
-  // Méthodes RichTextManager supprimées (intégrées à WindowUtils)
 }

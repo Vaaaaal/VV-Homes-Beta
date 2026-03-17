@@ -228,9 +228,9 @@ export class ImageModal {
       return;
     }
 
-    // Si clic sur un wrapper portant l'attribut videoExcludeAttribute, chercher une <video> enfant
+    // Si clic sur un wrapper direct d'une <video>, chercher une <video> enfant direct uniquement
     if (target.hasAttribute && !target.hasAttribute(this.videoExcludeAttribute) && !target.hasAttribute(this.excludeAttribute)) {
-      const vid = target.tagName === 'VIDEO' ? target : (target.querySelector ? target.querySelector('video') : null);
+      const vid = target.tagName === 'VIDEO' ? target : (target.querySelector ? target.querySelector(':scope > video') : null);
       if (vid && this._isMediaEligible(vid)) {
         e.preventDefault();
         e.stopPropagation();

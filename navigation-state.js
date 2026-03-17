@@ -31,11 +31,6 @@ export class NavigationState {
     }
   }
 
-  // Remplace totalement l'historique (usage limité)
-  replace(newArray) {
-    this.history = Array.isArray(newArray) ? [...newArray] : [];
-  }
-
   // Vide l'historique
   clear() { this.history = []; }
 
