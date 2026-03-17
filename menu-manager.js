@@ -6,19 +6,7 @@ import logger from './logger.js';
 import { NavigationState } from './navigation-state.js';
 import { NavigationActiveState } from './navigation-active-state.js';
 
-// ==========================================
-// CONSTANTES & HELPERS INTERNES
-// ==========================================
-const CMS_MINIMUM_ELEMENTS = 20;   // Seuil minimum pour initialisation fonctionnelle
-const CMS_INITIAL_WAIT = 1000;     // Attente initiale avant premier comptage
-const CMS_MAX_WAIT = 6000;         // Temps max pour atteindre le seuil
-const FINDSWEET_MAX_WAIT = 8000;   // Timeout Finsweet
-const FINDSWEET_CHECK_INTERVAL = 200; // Intervalle de polling
-
-// Promesse de délai
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
-// Normalisation en tableau
-const toArray = (list) => Array.isArray(list) ? list : Array.from(list || []);
+// (pas de constantes CMS — le DOM Webflow est déjà rendu nativement)
 
 /**
  * MenuManager - Gestionnaire de navigation dynamique pour CMS
@@ -55,107 +43,17 @@ export class MenuManager {
   // ==========================================
 
   /**
-   * Initialise le système de menu avec approche incrémentale
+   * Initialise le menu — le DOM Webflow est déjà rendu nativement, pas d'attente requise
    */
   async init() {
-  logger.menu(' MenuManager - Début initialisation');
-    
     if (!this.menu || !this.menuButton) {
-      logger.error(' MenuManager - Éléments essentiels manquants:', {
-        menu: !!this.menu,
-        menuButton: !!this.menuButton
-      });
       throw new Error('Éléments essentiels du menu manquants');
     }
-    
-    try {
-  logger.log('⏳ Attente Finsweet Attributes');
-  await this.waitForFinsweetAttributes();
-  logger.success(' Finsweet Attributes prêt');
-
-  logger.info(' Initialisation incrémentale CMS');
-  await this.initIncrementalCMS();
-      
-  logger.success(' MenuManager - Initialisation OK');
-      
-    } catch (error) {
-      logger.error(' MenuManager - Erreur lors de l\'initialisation:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Initialisation incrémentale des éléments CMS
-   */
-  async initIncrementalCMS() {
-  logger.log(`🎯 Objectif initial : ≥ ${CMS_MINIMUM_ELEMENTS} boutons CMS`);
-  await delay(CMS_INITIAL_WAIT);
-    
-    // Obtenir les éléments actuels
-    this.updateCMSButtons();
-    const initialCount = this.cmsButtons.length;
-    
-  logger.log(`📌 ${initialCount} boutons CMS détectés initialement`);
-    
-    if (initialCount >= CMS_MINIMUM_ELEMENTS) {
-      logger.success(` Seuil minimum atteint (${initialCount}/${CMS_MINIMUM_ELEMENTS})`);
-      this.initializeMenuWithCurrentElements();
-      
-      // Surveiller les nouveaux éléments en arrière-plan
-      this.startIncrementalWatcher();
-      
-    } else {
-      logger.log(`⏳ En attente (actuel ${initialCount}/${CMS_MINIMUM_ELEMENTS})...`);
-      const startTime = Date.now();
-      while (Date.now() - startTime < CMS_MAX_WAIT) {
-        await delay(500);
-        this.updateCMSButtons();
-        const currentCount = this.cmsButtons.length;
-        if (currentCount !== initialCount) {
-          logger.log(`➕ ${currentCount} boutons CMS (Δ ${currentCount - initialCount})`);
-        }
-        if (currentCount >= CMS_MINIMUM_ELEMENTS) {
-          logger.success(` Seuil minimum atteint (${currentCount}/${CMS_MINIMUM_ELEMENTS})`);
-          this.initializeMenuWithCurrentElements();
-          this.startIncrementalWatcher();
-          return;
-        }
-      }
-      logger.log(`⏰ Timeout atteint, initialisation avec ${this.cmsButtons.length} boutons`);
-      this.initializeMenuWithCurrentElements();
-      this.startIncrementalWatcher();
-    }
-  }
-
-  /**
-   * Met à jour la liste des boutons CMS
-   */
-  updateCMSButtons() {
-    const newButtons = toArray(document.querySelectorAll('.menu_panel_collection_item.is-btn'));
-    const previousCount = this.cmsButtons.length;
-    this.cmsButtons = newButtons;
-    
-    if (newButtons.length !== previousCount && previousCount > 0) {
-      logger.info(` Boutons CMS mis à jour : ${previousCount} → ${newButtons.length}`);
-    }
-    
-    return newButtons;
-  }
-
-  /**
-   * Initialise le menu avec les éléments actuellement disponibles
-   */
-  initializeMenuWithCurrentElements() {
-  logger.log(`🎨 Initialisation du menu (${this.cmsButtons.length} boutons)`);
-    
-    // Initialiser les positions et événements
+    this.cmsButtons = Array.from(document.querySelectorAll(CONFIG.SELECTORS.MENU_FOLDERS));
     this.initPanelPositions();
     this.initBasicEvents();
-    
-    // Ajouter les événements pour les boutons actuels
     this.attachCMSButtonEvents();
-    
-    logger.success(' Menu initialisé avec les éléments actuels');
+    logger.success('MenuManager initialisé');
   }
 
   /**
@@ -183,172 +81,11 @@ export class MenuManager {
   }
 
   /**
-   * Démarre la surveillance incrémentale des nouveaux éléments
-   */
-  startIncrementalWatcher() {
-    logger.log('👁️ Démarrage de la surveillance incrémentale...');
-    
-    const observer = new MutationObserver((mutations) => {
-      let hasNewElements = false;
-      
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              // Vérifier si le nouveau nœud contient des boutons CMS
-              const newButtons = node.matches?.('.menu_panel_collection_item.is-btn') 
-                ? [node] 
-                : Array.from(node.querySelectorAll?.('.menu_panel_collection_item.is-btn') || []);
-              
-              if (newButtons.length > 0) {
-                hasNewElements = true;
-              }
-            }
-          });
-        }
-      });
-      
-      if (hasNewElements) {
-        // Debounce les mises à jour
-        clearTimeout(this.updateTimeout);
-        this.updateTimeout = setTimeout(() => {
-          this.handleNewCMSElements();
-        }, 200);
-      }
-    });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    
-    // Stocker l'observer pour pouvoir l'arrêter plus tard
-    this.incrementalObserver = observer;
-    
-    logger.success(' Surveillance incrémentale active');
-  }
-
-  /**
-   * Traite les nouveaux éléments CMS détectés
-   */
-  handleNewCMSElements() {
-    const previousCount = this.cmsButtons.length;
-    this.updateCMSButtons();
-    const newCount = this.cmsButtons.length;
-    
-    if (newCount > previousCount) {
-      const addedCount = newCount - previousCount;
-      logger.log(`🆕 ${addedCount} nouveaux boutons CMS détectés (total: ${newCount})`);
-      
-      // Attacher les événements aux nouveaux boutons uniquement
-      this.attachCMSButtonEvents();
-
-      // Mettre à jour les positions si nécessaire
-      this.updatePanelPositions();
-
-      // Charger les nouvelles images différées
-      if (window.WindowUtils?.loadDeferredMedia) {
-        window.WindowUtils.loadDeferredMedia();
-      }
-    }
-  }
-
-  /**
-   * Met à jour les positions des panels après ajout d'éléments
-   */
-  updatePanelPositions() {
-    logger.info(' Mise à jour des positions des panels...');
-    this.initPanelPositions();
-  }
-
-  /**
-   * Attend que Finsweet Attributes soit chargé avec optimisation
-   */
-  async waitForFinsweetAttributes() {
-  const maxWaitTime = FINDSWEET_MAX_WAIT; // 8 secondes max
-  const checkInterval = FINDSWEET_CHECK_INTERVAL; // Vérifier toutes les 200ms
-  const startTime = Date.now();
-
-  // Vérification immédiate
-  if (this.checkFinsweetLoaded()) {
-    logger.success(' Finsweet Attributes déjà disponible');
-    return true;
-  }
-
-  logger.log('⏳ Attente de Finsweet Attributes...');
-
-  return new Promise((resolve) => {
-    let resolved = false;
-    // Ajout : écoute de l'événement fs-cmsload avec afterRender
-    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
-    listContainers.forEach(container => {
-      container.addEventListener('fs-cmsload', (event) => {
-        if (event.detail?.type === 'afterRender' && !resolved) {
-          resolved = true;
-          logger.success(' Finsweet Attributes afterRender détecté');
-          resolve(true);
-        }
-      }, { once: true });
-    });
-
-    // Fallback polling
-    const checkLoad = () => {
-      if (resolved) return;
-      if (this.checkFinsweetLoaded()) {
-        logger.success(' Finsweet Attributes détecté (polling)');
-        resolve(true);
-        return;
-      }
-      if (Date.now() - startTime > maxWaitTime) {
-        logger.warn(' Timeout Finsweet Attributes - Continuation sans attendre');
-        resolve(false); // Ne pas rejeter, juste continuer
-        return;
-      }
-      setTimeout(checkLoad, checkInterval);
-    };
-    checkLoad();
-  });
-}
-
-  /**
-   * Vérifie si Finsweet est chargé de manière optimisée
-   */
-  checkFinsweetLoaded() {
-    // Vérifier si les listes CMS sont présentes
-    const cmsElements = document.querySelectorAll('.menu_panel_collection_item');
-    if (cmsElements.length < 10) {
-      return false; // Pas assez d'éléments CMS
-    }
-    
-    // Vérifier si les conteneurs Finsweet sont présents
-    const listContainers = document.querySelectorAll('[fs-cmsload-element="list"]');
-    if (listContainers.length === 0) {
-      // Pas de conteneurs Finsweet, mais si on a des éléments CMS, c'est bon
-      return cmsElements.length > 20;
-    }
-    
-    // Vérifier si au moins une liste a du contenu
-    let hasContent = false;
-    listContainers.forEach(container => {
-      const items = container.querySelectorAll('.menu_panel_collection_item');
-      if (items.length > 5) {
-        hasContent = true;
-      }
-    });
-    
-    return hasContent;
-  }
-
-  /**
    * Initialise les positions des panels
    */
   initPanelPositions() {
     if (this.menuPanelItems) {
-      gsap.set(this.menuPanelItems, {
-        xPercent: -101,
-        opacity: 1,
-        pointerEvents: "none"
-      });
+      gsap.set(this.menuPanelItems, { xPercent: -101, opacity: 1, pointerEvents: "none" });
     }
   }
 
@@ -754,31 +491,83 @@ export class MenuManager {
   findButtonByPanelName(panelName) { return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null; }
 
   /**
-   * Navigue vers un nouveau panel
+   * Navigue vers un nouveau panel — pre-fetch au clic
    * @param {string} panelName - Le data-name du panel
    */
   navigateToNewPanel(panelName) {
     this.addToNavigationHistory(panelName);
+
+    if (this.cmsFetchManager) {
+      this.cmsFetchManager.prefetch(this._buildFetchUrl(panelName));
+    }
+
     this.showPanel(panelName);
     this.activeState.onOpen(panelName);
     this.updateExitAllButtonsVisibility();
   }
 
   /**
-   * Affiche un panel avec animation
+   * Affiche un panel — le crée dynamiquement si inexistant, injecte le contenu fetché
    * @param {string} panelName - Le data-name du panel
    */
   showPanel(panelName, { skipAnimation = false } = {}) {
-    const panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+    let panel = document.querySelector(`.menu_panel_item[data-name="${panelName}"]`);
+
+    if (!panel) {
+      panel = this._createDynamicPanel(panelName);
+    }
     if (!panel) return;
+
+    if (this.cmsFetchManager) {
+      const slot = panel.querySelector('.menu_panel_item_middle');
+      if (!slot?.dataset.fetched) {
+        slot?.classList.add('is-loading');
+        this.cmsFetchManager.fetchAndInject(this._buildFetchUrl(panelName), panel).then(injected => {
+          slot?.classList.remove('is-loading');
+          if (injected) this._attachEventsInPanel(panel);
+        });
+      }
+    }
+
     panel.removeAttribute('aria-hidden');
     gsap.set(panel, { pointerEvents: "auto" });
-    if (skipAnimation) {
-      gsap.set(panel, { xPercent: 0 });
-      return;
-    }
+    if (skipAnimation) { gsap.set(panel, { xPercent: 0 }); return; }
     gsap.to(panel, { duration: CONFIG.ANIMATION.DURATION, ease: CONFIG.ANIMATION.EASE.POWER2.OUT, xPercent: 0 });
   }
+
+  // Crée un panel vide à la volée pour les Dossiers imbriqués découverts via fetch
+  _createDynamicPanel(panelName) {
+    const panel = document.createElement('div');
+    panel.className = 'menu_panel_item is-dynamic';
+    panel.dataset.name = panelName;
+    panel.innerHTML = '<div class="menu_panel_item_middle"></div>';
+    gsap.set(panel, { xPercent: -101, pointerEvents: "none" });
+    this.menu.appendChild(panel);
+    return panel;
+  }
+
+  // Attache les events aux boutons Dossiers dans le contenu injecté
+  // et définit data-parent automatiquement (pas besoin de le configurer dans Webflow)
+  _attachEventsInPanel(container) {
+    const parentName = container.dataset.name;
+    container.querySelectorAll(CONFIG.SELECTORS.MENU_FOLDERS).forEach(btn => {
+      if (!btn.hasAttribute('data-vv-initialized')) {
+        if (!btn.dataset.parent) btn.dataset.parent = parentName;
+        this.attachButtonEvents(btn);
+        btn.setAttribute('data-vv-initialized', 'true');
+        this.cmsButtons.push(btn);
+      }
+    });
+    if (window.WindowUtils?.loadDeferredMedia) {
+      window.WindowUtils.loadDeferredMedia();
+    }
+  }
+
+  // Construit l'URL de fetch à partir du slug du panel
+  _buildFetchUrl(panelName) { return `${CONFIG.FETCH_BASE_PATH}/${panelName}`; }
+
+  // Injecte le CmsFetchManager après init
+  setCmsFetchManager(manager) { this.cmsFetchManager = manager; }
 
   /**
    * Ajoute un panel à l'historique
@@ -902,6 +691,7 @@ export class MenuManager {
     if (this.smoothScrollManager) {
       this.smoothScrollManager.enableScroll();
     }
+    this.menu.querySelectorAll('.menu_panel_item.is-dynamic').forEach(p => p.remove());
   }
 
   // ==========================================
@@ -909,11 +699,6 @@ export class MenuManager {
   // ==========================================
   destroy() {
     document.removeEventListener('click', this._onDocumentClick);
-    if (this.incrementalObserver) {
-      try { this.incrementalObserver.disconnect(); } catch { /* noop */ }
-      this.incrementalObserver = null;
-    }
-    clearTimeout(this.updateTimeout);
   }
 
 }

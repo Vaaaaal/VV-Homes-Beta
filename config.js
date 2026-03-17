@@ -17,6 +17,9 @@ export const CONFIG = {
     },
     SNAP_EASE: "circ.inOut"
   },
+  // Préfixe pour les URLs des pages Dossier fetchées
+  FETCH_BASE_PATH: '/menu-dossier',
+
   // Sélecteurs CSS utilisés dans l'application
   SELECTORS: {
     SLIDER_ITEM: ".slider-panel_item",                                  // Chaque slide du slider
