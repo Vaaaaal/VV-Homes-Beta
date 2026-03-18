@@ -1074,13 +1074,15 @@ export class ImageModal {
       const sliderPanel = mediaEl.closest('.slider-panel_item');
       if (!sliderPanel) return null;
       
-      // PRIORITÉ 1: Chercher .slider-panel_background qui est un élément <img>
+      // PRIORITÉ 1: Chercher une <img> dans .slider-panel_background (div configurable via CMS)
       const bgElement = sliderPanel.querySelector('.slider-panel_background');
-      if (bgElement && bgElement.tagName === 'IMG') {
-        const imgSrc = bgElement.currentSrc || bgElement.src;
-        if (imgSrc) {
-          // Retourner au format CSS url(...) pour compatibilité avec backgroundImage
-          return `url("${imgSrc}")`;
+      if (bgElement) {
+        const imgEl = bgElement.querySelector('img');
+        if (imgEl) {
+          const imgSrc = imgEl.currentSrc || imgEl.src;
+          if (imgSrc) {
+            return `url("${imgSrc}")`;
+          }
         }
       }
       

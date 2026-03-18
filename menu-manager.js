@@ -160,8 +160,14 @@ export class MenuManager {
    */
   async navigateToPanel(targetPanelName, { skipAnimation = false } = {}) {
     // Construire le chemin complet vers le panel cible
-    const ancestorPath = this.buildAncestorPath(targetPanelName);
-    
+    let ancestorPath = this.buildAncestorPath(targetPanelName);
+
+    // Si le bouton cible n'est pas encore connu (panel profond pas encore fetché),
+    // on découvre le chemin en fetchant les panels niveau par niveau
+    if (ancestorPath.length === 0 && this.cmsFetchManager) {
+      ancestorPath = await this._discoverPathByFetch(targetPanelName);
+    }
+
     if (ancestorPath.length === 0) {
       return;
     }
@@ -169,13 +175,73 @@ export class MenuManager {
     // Ouvrir le menu s'il n'est pas déjà ouvert
     if (!this.menu.classList.contains("is-active")) {
       this.openMenu();
-      
+
       // Attendre que l'animation d'ouverture soit terminée
       await new Promise(resolve => setTimeout(resolve, CONFIG.ANIMATION.DURATION * 1000));
     }
 
     // Naviguer vers le panel cible en ouvrant tous les ancêtres
     await this.openAncestorPath(ancestorPath, { skipAnimation });
+  }
+
+  /**
+   * Découvre le chemin vers un panel en fetchant le contenu niveau par niveau (BFS)
+   * Utilisé quand le bouton cible n'est pas encore dans cmsButtons
+   * @param {string} targetPanelName
+   * @param {number} maxDepth
+   * @returns {string[]}
+   */
+  async _discoverPathByFetch(targetPanelName, maxDepth = 3) {
+    // Si un préchauffage est en cours, l'attendre d'abord
+    if (this._warmupPromise) await this._warmupPromise;
+    // Tenter le chemin direct après le préchauffage
+    const earlyPath = this.buildAncestorPath(targetPanelName);
+    if (earlyPath.length > 0) return earlyPath;
+
+    // Fallback : BFS avec fetches parallèles par niveau
+    let toExplore = this.cmsButtons
+      .filter(btn => !btn.dataset.parent)
+      .map(btn => btn.dataset.name)
+      .filter(Boolean);
+
+    for (let depth = 0; depth < maxDepth; depth++) {
+      // Tous les panels du niveau courant en parallèle
+      await Promise.all(toExplore.map(name => this._registerButtonsFromFetch(name)));
+      const path = this.buildAncestorPath(targetPanelName);
+      if (path.length > 0) return path;
+      // Préparer le niveau suivant
+      const nextLevel = [];
+      toExplore.forEach(panelName => {
+        this.cmsButtons
+          .filter(btn => btn.dataset.parent === panelName && btn.dataset.name)
+          .forEach(btn => nextLevel.push(btn.dataset.name));
+      });
+      toExplore = [...new Set(nextLevel)];
+      if (!toExplore.length) break;
+    }
+    return [];
+  }
+
+  /**
+   * Fetche le contenu d'un panel et enregistre ses boutons enfants dans cmsButtons
+   * sans rien rendre dans le DOM
+   * @param {string} panelName
+   */
+  async _registerButtonsFromFetch(panelName) {
+    if (!this.cmsFetchManager) return;
+    const doc = await this.cmsFetchManager.fetchDoc(this._buildFetchUrl(panelName));
+    if (!doc) return;
+    const source = doc.querySelector('[data-panel-target]');
+    if (!source) return;
+    source.querySelectorAll(CONFIG.SELECTORS.MENU_FOLDERS).forEach(btn => {
+      const name = btn.dataset.name;
+      if (!name || this.cmsButtons.some(b => b.dataset.name === name)) return;
+      // Créer un bouton fantôme pour que buildAncestorPath puisse remonter la hiérarchie
+      const ghost = document.createElement('div');
+      ghost.dataset.name = name;
+      ghost.dataset.parent = btn.dataset.parent || panelName;
+      this.cmsButtons.push(ghost);
+    });
   }
 
   /**
@@ -488,7 +554,12 @@ export class MenuManager {
    * @param {string} panelName - Le data-name du panel
    * @returns {HTMLElement|null} - Le bouton trouvé ou null
    */
-  findButtonByPanelName(panelName) { return this.cmsButtons.find(btn => btn.dataset.name === panelName) || null; }
+  findButtonByPanelName(panelName) {
+    // Préférer un bouton réellement dans le DOM (plutôt qu'un fantôme de warmup)
+    return this.cmsButtons.find(btn => btn.dataset.name === panelName && document.contains(btn))
+      || this.cmsButtons.find(btn => btn.dataset.name === panelName)
+      || null;
+  }
 
   /**
    * Navigue vers un nouveau panel — pre-fetch au clic
@@ -555,7 +626,13 @@ export class MenuManager {
         if (!btn.dataset.parent) btn.dataset.parent = parentName;
         this.attachButtonEvents(btn);
         btn.setAttribute('data-vv-initialized', 'true');
-        this.cmsButtons.push(btn);
+        // Remplacer le bouton fantôme (warmup) par le vrai bouton DOM s'il existe
+        const ghostIdx = this.cmsButtons.findIndex(b => b.dataset.name === btn.dataset.name && !document.contains(b));
+        if (ghostIdx !== -1) {
+          this.cmsButtons[ghostIdx] = btn;
+        } else {
+          this.cmsButtons.push(btn);
+        }
       }
     });
     if (window.WindowUtils?.loadDeferredMedia) {
@@ -566,8 +643,34 @@ export class MenuManager {
   // Construit l'URL de fetch à partir du slug du panel
   _buildFetchUrl(panelName) { return `${CONFIG.FETCH_BASE_PATH}/${panelName}`; }
 
-  // Injecte le CmsFetchManager après init
-  setCmsFetchManager(manager) { this.cmsFetchManager = manager; }
+  // Injecte le CmsFetchManager après init et lance le préchauffage en arrière-plan
+  setCmsFetchManager(manager) {
+    this.cmsFetchManager = manager;
+    this._warmupPromise = this._warmupButtonRegistry();
+  }
+
+  /**
+   * Préchauffage silencieux : fetche tous les panels niveau par niveau en parallèle
+   * pour peupler cmsButtons avant la première navigation
+   */
+  async _warmupButtonRegistry(maxDepth = 3) {
+    let toExplore = this.cmsButtons
+      .filter(btn => !btn.dataset.parent)
+      .map(btn => btn.dataset.name)
+      .filter(Boolean);
+
+    for (let depth = 0; depth < maxDepth; depth++) {
+      await Promise.all(toExplore.map(name => this._registerButtonsFromFetch(name)));
+      const nextLevel = [];
+      toExplore.forEach(panelName => {
+        this.cmsButtons
+          .filter(btn => btn.dataset.parent === panelName && btn.dataset.name)
+          .forEach(btn => nextLevel.push(btn.dataset.name));
+      });
+      toExplore = [...new Set(nextLevel)];
+      if (!toExplore.length) break;
+    }
+  }
 
   /**
    * Ajoute un panel à l'historique

@@ -36,4 +36,11 @@ export class CmsFetchManager {
     this.prefetch(url);
     return this.inject(url, panelEl);
   }
+
+  // Récupère le document fetchée sans l'injecter dans le DOM
+  async fetchDoc(url) {
+    this.prefetch(url);
+    if (this._pending.has(url)) await this._pending.get(url);
+    return this._cache.get(url) || null;
+  }
 }

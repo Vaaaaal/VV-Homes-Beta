@@ -28,12 +28,15 @@ export class SliderManager {
     this.lastSlide = document.querySelector(".slider-panel_item.is-last");
     this.firstSlide = document.querySelector(".slider-panel_item.is-first");
     
-    // Éléments de l'indicateur de progression
-    this.indicatorBall = document.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
-    
+    // Éléments de l'indicateur de progression — ciblés dans nav_wrap pour éviter
+    // les conflits avec d'autres instances de ces éléments sur la page
+    const navWrap = document.querySelector('.nav_wrap');
+    const scope = navWrap || document;
+    this.indicatorBall = scope.querySelector(CONFIG.SELECTORS.INDICATOR_BALL);
+
     // OPTIMISATION: Stocker les références des ScrollTriggers pour un nettoyage efficace
     this.scrollTriggers = new Set();
-    this.indicatorTrack = document.querySelector(CONFIG.SELECTORS.INDICATOR_TRACK);
+    this.indicatorTrack = scope.querySelector(CONFIG.SELECTORS.INDICATOR_TRACK);
     
     // OPTIMISATION MOBILE: Variables pour la gestion conditionnelle
     this.isMobileMode = false;
@@ -296,11 +299,15 @@ export class SliderManager {
   /**
    * Met à jour la position de la boule indicatrice selon la slide active
    * Calcule la position proportionnelle dans la catégorie active
+   * @param {HTMLElement} activePanel - La slide qui vient d'être activée (passée directement pour éviter les problèmes de timing avec toggleClass)
    */
-  updateIndicatorBall() {
-    // Trouve la slide actuellement active
-    const activePanel = document.querySelector('.slider-panel_item.is-active-panel');
+  updateIndicatorBall(activePanel) {
+    // Utilise le panel passé en paramètre, ou fallback sur le DOM (moins fiable)
+    if (!activePanel) activePanel = document.querySelector('.slider-panel_item.is-active-panel');
     if (!activePanel || !this.indicatorBall || !this.indicatorTrack) return;
+
+    // Ignore la firstSlide (hors catégorie, comme la lastSlide)
+    if (activePanel.classList.contains('is-first')) return;
 
     // Récupère la catégorie de la slide active
     const activeCategory = activePanel.dataset.sliderCategory;
@@ -380,11 +387,11 @@ export class SliderManager {
         },
         onEnter: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
         onEnterBack: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
       } : {
         trigger: item,
@@ -397,11 +404,11 @@ export class SliderManager {
         },
         onEnter: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
         onEnterBack: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
       };
 
@@ -541,11 +548,11 @@ export class SliderManager {
         // PAS d'animations coûteuses en mode dégradé
         onEnter: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
         onEnterBack: () => {
           this.makeCategoryActive(item);
-          this.updateIndicatorBall();
+          this.updateIndicatorBall(item);
         },
       });
     });
