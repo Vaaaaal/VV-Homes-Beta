@@ -207,6 +207,25 @@ export class LoaderManager {
     this.shouldSkipLoaderAnimation = true;
     this.deferAutoStart = true;
 
+    // Masquer loader_one et loader_content_video immédiatement
+    const elementsToHide = [
+      this.loaderContentOne,
+      document.querySelector('.loader_content_video')
+    ].filter(Boolean);
+    if (elementsToHide.length) {
+      gsap.set(elementsToHide, { opacity: 0, display: 'none' });
+    }
+
+    // Placer les éléments sous le loader en position finale dès maintenant,
+    // avant que le flash disparaisse
+    if (this.mainList) {
+      gsap.set(this.mainList, { xPercent: 0, clearProps: 'transform' });
+      gsap.set(this.mainList.querySelectorAll('.slider-panel_infos'), { opacity: 1, y: 0 });
+    }
+    if (this.navbar) {
+      gsap.set(this.navbar, { opacity: 1, y: 0 });
+    }
+
     this.requestMenuNavigation({ panelName: targetPanelName, skipAnimation: true });
     sessionStorage.removeItem("fromArticles");
     this.scheduleSpecialFadeAutoStart();
@@ -372,7 +391,7 @@ export class LoaderManager {
 		this.shouldSkipLoaderAnimation = false;
 
     if (useFadeOutOnly) {
-        this._playVertical({ forceDesktopFade: isHorizontal });
+        this._playFromArticle();
         return;
       }
 
@@ -469,6 +488,34 @@ export class LoaderManager {
 		this.resetLoaderImagePositions();
 	}
   
+  /**
+   * Animation spéciale quand l'utilisateur arrive depuis une page article :
+   * - loader_one masqué immédiatement (pas de fade)
+   * - slider, navbar et infos déjà en place
+   * - simple fade out de l'overlay loader
+   */
+  _playFromArticle() {
+    // Éléments déjà en place via maybeNavigateMenuFromLoader — juste fade out de l'overlay
+
+    gsap.to(this.loaderElement, {
+      opacity: 0,
+      duration: DUR.V_FADE,
+      onComplete: () => {
+        this.loaderElement.classList.remove('is-active');
+        this.isLoading = false;
+        gsap.set(this.loaderElement, { display: 'none', pointerEvents: 'none' });
+        this.unlockMainListScroll();
+        this.restoreScrollCapability();
+        if (window.ScrollTrigger) {
+          ScrollTrigger.refresh();
+          if (this.smoothScrollManager) this.smoothScrollManager.disableResetWatchdog();
+        }
+        this.resetLoaderImagePositions();
+        logger.success('✅ Chargement depuis article terminé');
+      }
+    });
+  }
+
 	/**
 	 * Crée l'animation pour le mode horizontal (desktop)
 	 */

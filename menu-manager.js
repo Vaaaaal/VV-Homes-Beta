@@ -598,6 +598,7 @@ export class MenuManager {
           if (injected) {
             this._attachEventsInPanel(panel);
             window.richtextImages?.process(panel);
+            window.WindowUtils?.enhanceRichTextFigures?.();
           }
         });
       }
