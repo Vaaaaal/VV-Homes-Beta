@@ -15,6 +15,7 @@ import { DebugUtils } from './debug-utils.js';
 import { MenuFallback } from './menu-fallback.js';
 import { MobileLiteManager } from './mobile-lite-manager.js';
 import { ImageModal } from './modal-image.js';
+import { RichtextResponsiveImages } from './richtext-responsive-images.js';
 import './utils.js'; // Import des WindowUtils
 import logger from './logger.js';
 
@@ -58,6 +59,7 @@ export class VVPlaceApp {
     this.menuFallback = null;            // Menu de fallback
     this.modalManager = null;            // Gestion des modales
     this.imageModal = null;             // Modal d'affichage d'images (global)
+    this.richtextResponsiveImages = null; // Images responsives dans les richtexts
   }
 
   /**
@@ -226,6 +228,16 @@ export class VVPlaceApp {
       }
     } catch(e) {
       logger.warn(' Enhancement texte riche ignoré');
+    }
+
+    // 7b. Images responsives dans les richtexts (paires desktop/mobile → <picture>)
+    try {
+      this.richtextResponsiveImages = new RichtextResponsiveImages();
+      this.richtextResponsiveImages.init();
+      // Exposer globalement pour le contenu injecté dynamiquement (menu, etc.)
+      window.richtextImages = this.richtextResponsiveImages;
+    } catch(e) {
+      logger.warn(' RichtextResponsiveImages ignoré:', e);
     }
 
     // 8. Organisation des slides (même en mode mobile lite pour l'ordre correct)

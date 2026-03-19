@@ -595,7 +595,10 @@ export class MenuManager {
         slot?.classList.add('is-loading');
         this.cmsFetchManager.fetchAndInject(this._buildFetchUrl(panelName), panel).then(injected => {
           slot?.classList.remove('is-loading');
-          if (injected) this._attachEventsInPanel(panel);
+          if (injected) {
+            this._attachEventsInPanel(panel);
+            window.richtextImages?.process(panel);
+          }
         });
       }
     }
